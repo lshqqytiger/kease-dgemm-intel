@@ -1,0 +1,1 @@
+./benchmark --compile true --compiler icc --layout col --alpha -1.0 -m 10000 -n 10000 -k 10000 -r 5 --compiler-args "-I ./include -fPIC -mkl -wd3950 -DUSE_CILKPLUS" --save-as ./reports/cblas/0.rpt ./kernel/cblas.c
