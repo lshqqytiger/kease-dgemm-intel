@@ -5,7 +5,6 @@ ifeq (cc,$(CC))
 CC     := icc
 endif
 CFLAGS := -O3 -march=native -lnuma -lmemkind -Iinclude
-#CFLAGS += -Wall -Werror
 ifeq (icc,$(CC))
 #CFLAGS += -qopenmp -wd3950 -DUSE_CILKPLUS -restrict
 else
@@ -35,17 +34,14 @@ $(OUTPUT_PATH)/dgemm_flops_blis.out: dgemm_flops.c $(KERNEL_PATH)/blis.c
 $(OUTPUT_PATH)/dgemm_flops_openblas.out: dgemm_flops.c $(KERNEL_PATH)/cblas.c
 	gcc -o $@ $^ $(CFLAGS) /opt/OpenBLAS/lib/libopenblas.a -fopenmp -DKERNEL=\"OpenBLAS\" -DNO_MKL
 
-$(OUTPUT_PATH)/dgemm_flops_userdgemm.out: dgemm_flops.c $(KERNEL_PATH)/userdgemm.c $(KERNEL_PATH)/knl_k40_nt_anbp.c $(KERNEL_PATH)/knl_n40_apbz.c $(KERNEL_PATH)/knl_general.c
-	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DKERNEL=\"userdgemm\" -DVERIFY
-
 $(OUTPUT_PATH)/dgemm_flops_kernel.01.oc.out: dgemm_flops.c $(KERNEL_PATH)/kernel.01.oc.c
-	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DKERNEL=\"kernel.01.oc\" -DVERIFY
+	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DUSE_MCDRAM -DKERNEL=\"kernel.01.oc\" -DVERIFY
 
 $(OUTPUT_PATH)/dgemm_flops_kernel.01.mc.out: dgemm_flops.c $(KERNEL_PATH)/kernel.01.mc.c
-	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DKERNEL=\"kernel.01.mc\" $(BLOCK) -DVERIFY
+	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DUSE_MCDRAM -DKERNEL=\"kernel.01.mc\" $(BLOCK) -DVERIFY
 
 $(OUTPUT_PATH)/dgemm_flops_kernel.02.oc.out: dgemm_flops.c $(KERNEL_PATH)/kernel.02.oc.c
-	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DKERNEL=\"kernel.02.oc\" -DVERIFY
+	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DUSE_MCDRAM -DKERNEL=\"kernel.02.oc\" -DVERIFY
 
 clean:
 	rm -f $(OUTPUT_PATH)/dgemm_flops_*.out

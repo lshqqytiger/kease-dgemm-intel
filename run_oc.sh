@@ -8,7 +8,7 @@ OUT_PATH=./out
 LOG_PATH=./log
 
 #for kernel in 'mkl' 'blis' 'openblas' 'kernel.01.oc' 'userdgemm'
-for kernel in 'mkl'
+for kernel in 'kernel.01.oc'
 do
     make -s ${kernel}
 
