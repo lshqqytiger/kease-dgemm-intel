@@ -15,15 +15,14 @@ CFLAGS += -fopenmp -qmkl=parallel
 endif
 endif
 
-all: mkl blis openblas kernel.01.oc kernel.01.mc kernel.02.oc
+all: mkl kernel.01.mc kernel.01.oc
 
 mkl:          $(OUTPUT_PATH)/dgemm_flops_mkl.out
 blis:         $(OUTPUT_PATH)/dgemm_flops_blis.out
 openblas:     $(OUTPUT_PATH)/dgemm_flops_openblas.out
 userdgemm:    $(OUTPUT_PATH)/dgemm_flops_userdgemm.out
-kernel.01.oc: $(OUTPUT_PATH)/dgemm_flops_kernel.01.oc.out
-kernel.01.mc: $(OUTPUT_PATH)/dgemm_flops_kernel.01.mc.out
-kernel.02.oc: $(OUTPUT_PATH)/dgemm_flops_kernel.02.oc.out
+kernel.mc: $(OUTPUT_PATH)/dgemm_flops_kernel.mc.out
+kernel.oc: $(OUTPUT_PATH)/dgemm_flops_kernel.oc.out
 
 $(OUTPUT_PATH)/dgemm_flops_mkl.out: dgemm_flops.c $(KERNEL_PATH)/cblas.c
 	$(CC) -o $@ $^ $(CFLAGS) -mkl -wd3950 -DUSE_CILKPLUS -DKERNEL=\"mkl\"
@@ -34,14 +33,11 @@ $(OUTPUT_PATH)/dgemm_flops_blis.out: dgemm_flops.c $(KERNEL_PATH)/blis.c
 $(OUTPUT_PATH)/dgemm_flops_openblas.out: dgemm_flops.c $(KERNEL_PATH)/cblas.c
 	gcc -o $@ $^ $(CFLAGS) /opt/OpenBLAS/lib/libopenblas.a -fopenmp -DKERNEL=\"OpenBLAS\" -DNO_MKL
 
-$(OUTPUT_PATH)/dgemm_flops_kernel.01.oc.out: dgemm_flops.c $(KERNEL_PATH)/kernel.01.oc.c
-	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DUSE_MCDRAM -DKERNEL=\"kernel.01.oc\" -DVERIFY
+$(OUTPUT_PATH)/dgemm_flops_kernel.mc.out: dgemm_flops.c $(KERNEL_PATH)/kernel.mc.c
+	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DUSE_MCDRAM -DKERNEL=\"kernel.mc\" $(BLOCK) -DVERIFY
 
-$(OUTPUT_PATH)/dgemm_flops_kernel.01.mc.out: dgemm_flops.c $(KERNEL_PATH)/kernel.01.mc.c
-	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DUSE_MCDRAM -DKERNEL=\"kernel.01.mc\" $(BLOCK) -DVERIFY
-
-$(OUTPUT_PATH)/dgemm_flops_kernel.02.oc.out: dgemm_flops.c $(KERNEL_PATH)/kernel.02.oc.c
-	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DUSE_MCDRAM -DKERNEL=\"kernel.02.oc\" -DVERIFY
+$(OUTPUT_PATH)/dgemm_flops_kernel.oc.out: dgemm_flops.c $(KERNEL_PATH)/kernel.oc.c
+	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DUSE_CILKPLUS -DUSE_MCDRAM -DKERNEL=\"kernel.oc\" $(BLOCK) -DVERIFY
 
 clean:
 	rm -f $(OUTPUT_PATH)/dgemm_flops_*.out

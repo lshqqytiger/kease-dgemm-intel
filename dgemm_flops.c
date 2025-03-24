@@ -10,11 +10,6 @@
 #define KERNEL "UNKNOWN"
 #endif
 
-#ifdef VERIFY
-#endif
-
-// #define SILENT
-
 static void set_data(double *A, uint64_t size, uint64_t seed, double min_value, double max_value);
 
 int main(int argc, char **argv)
@@ -146,25 +141,6 @@ int main(int argc, char **argv)
 static void set_data(double *A, uint64_t size, uint64_t seed, double min_value,
                      double max_value)
 {
-    /*
-#pragma omp parallel
-    {
-        uint64_t tid = omp_get_thread_num();
-        uint64_t value = (tid * 1034871 + 10581) + seed;
-        const uint64_t mul = 192499;
-        const uint64_t add = 6837199;
-        for (uint64_t i = 0; i < 50 + tid; ++i) {
-            value = value * mul + add;
-        }
-
-#pragma omp for
-        for (uint64_t i = 0; i < size; ++i) {
-            value = value * mul + add;
-            A[i] = (double)value / (double)(uint64_t)(-1) * (max_value - min_value) + min_value;
-        }
-    }
-    */
-    /*
 #pragma omp parallel
     {
         uint64_t tid = omp_get_thread_num();
@@ -181,5 +157,4 @@ static void set_data(double *A, uint64_t size, uint64_t seed, double min_value,
         vdRngUniform(VSL_RNG_METHOD_UNIFORM_STD_ACCURATE, stm, my_size, mat, min_value, max_value);
         vslDeleteStream(&stm);
     }
-    */
 }

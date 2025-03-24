@@ -20,8 +20,8 @@ export BLIS_JC_NT=4 BLIS_IC_NT=17
 OUT_PATH=./out
 LOG_PATH=./log
 
-#for kernel in 'mkl' 'blis' 'openblas' 'userdgemm' 'kernel.01.mc'
-for kernel in 'kernel.01.mc'
+#for kernel in 'mkl' 'blis' 'openblas' 'userdgemm' 'kernel.mc'
+for kernel in 'kernel.mc'
 do
     make -s -j102 ${kernel}
 

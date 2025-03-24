@@ -7,8 +7,8 @@ export OMP_NUM_THREADS=1
 OUT_PATH=./out
 LOG_PATH=./log
 
-#for kernel in 'mkl' 'blis' 'openblas' 'kernel.01.oc' 'userdgemm'
-for kernel in 'kernel.01.oc'
+#for kernel in 'mkl' 'blis' 'openblas' 'kernel.oc' 'userdgemm'
+for kernel in 'kernel.oc'
 do
     make -s ${kernel}
 

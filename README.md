@@ -30,7 +30,7 @@ Alpha: -1.0
 Beta: 1.0
 ```
 
-To benchmark our kernel on multiple cores, run `run_mc.sh` on the shell.
+To benchmark our kernel on multiple cores, run `run_mc.sh` on the shell.  
 `run_mc.sh` runs benchmark using following parameters and repeats 5 times for each M, N, K:
 ```
 Number of threads: 68
