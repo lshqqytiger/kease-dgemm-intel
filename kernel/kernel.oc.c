@@ -468,8 +468,6 @@ void inner_kernel_ppc_anbp(
             {
                 double _C[MR * NR] __attribute__((aligned(64))) = {};
                 micro_kernel_8x24_ppc_anbp(kk, A_now, _B + nni * 600, _C, MR, A_next);
-                micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
-            }
 #else
             if (LIKELY(mmm == MR && nnn == NR))
             {
@@ -479,13 +477,12 @@ void inner_kernel_ppc_anbp(
             {
                 double _C[MR * NR] __attribute__((aligned(64))) = {};
                 micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, _C, MR, A_next);
+#endif
                 micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
             }
-#endif
         }
     }
 }
-// #define ORIGIN_PACKACC
 
 // #define PACKACC_M_FIRST
 
@@ -496,18 +493,6 @@ void packacc(
     uint64_t lda,
     double *restrict _A)
 {
-#ifdef ORIGIN_PACKACC
-    uint64_t mmc = (mm + MR - 1) / MR;
-    uint64_t mmr = mm % MR;
-    for (uint64_t j = 0; j < kk; ++j)
-    {
-        for (uint64_t mmi = 0; mmi < mmc; ++mmi)
-        {
-            uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
-            memcpy(_A + mmi * MR * kk + j * MR, A + mmi * MR + j * lda, sizeof(double) * mmm);
-        }
-    }
-#else
     uint64_t mmc = (mm + MR - 1) / MR;
     uint64_t mmr = mm % MR;
     uint64_t kkc = (kk + CACHE_ELEM - 1) / CACHE_ELEM;
@@ -715,7 +700,6 @@ void packacc(
 #endif
         }
     }
-#endif
 }
 
 void transpose(double *dst, const double *src, int ld)
@@ -884,14 +868,8 @@ void call_dgemm(
     uint64_t kc = (k + KB - 1) / KB;
     uint64_t kr = k % KB;
 
-    static double *_A = NULL;
-    static double *_B = NULL;
-
-    if (_A == NULL)
-    {
-        ALLOC(_A, sizeof(double) * (MB + MR) * KB);
-        ALLOC(_B, sizeof(double) * KB * NB);
-    }
+    double *_A = numa_alloc(sizeof(double) * (MB + MR) * KB);
+    double *_B = numa_alloc(sizeof(double) * KB * NB);
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
@@ -917,4 +895,7 @@ void call_dgemm(
             }
         }
     }
+
+    numa_free(_A, sizeof(double) * (MB + MR) * KB);
+    numa_free(_B, sizeof(double) * KB * NB);
 }

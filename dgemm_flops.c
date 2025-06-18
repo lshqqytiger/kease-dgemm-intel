@@ -10,7 +10,7 @@
 #define KERNEL "UNKNOWN"
 #endif
 
-static void set_data(double *A, uint64_t size, uint64_t seed, double min_value, double max_value);
+static void set_data(double *matrix, uint64_t size, uint64_t seed, double min_value, double max_value);
 
 int main(int argc, char **argv)
 {
@@ -52,13 +52,9 @@ int main(int argc, char **argv)
     printf("Kernel:%s, M:%lu, N:%lu, K:%lu, ", KERNEL, m, n, k);
 #endif
 
-    double *A = NULL;
-    double *B = NULL;
-    double *C = NULL;
-
-    ALLOC(A, sizeof(double) * m * k);
-    ALLOC(B, sizeof(double) * k * n);
-    ALLOC(C, sizeof(double) * m * n);
+    double *A = numa_alloc(sizeof(double) * m * k);
+    double *B = numa_alloc(sizeof(double) * k * n);
+    double *C = numa_alloc(sizeof(double) * m * n);
 
     omp_set_num_threads(nt);
 
@@ -67,8 +63,7 @@ int main(int argc, char **argv)
     set_data(C, m * n, 300, -1.0, 1.0);
 
 #ifdef VERIFY
-    double *D = NULL;
-    ALLOC(D, sizeof(double) * m * n);
+    double *D = numa_alloc(sizeof(double) * m * n);
     set_data(D, m * n, 300, -1.0, 1.0);
 #endif
 
@@ -124,11 +119,11 @@ int main(int argc, char **argv)
     printf("best) %.3lf (%.3lf Gflops)\n", min_duration, max_gflops);
 #endif
 
-    FREE(A, sizeof(double) * m * k);
-    FREE(B, sizeof(double) * k * n);
-    FREE(C, sizeof(double) * m * n);
+    numa_free(A, sizeof(double) * m * k);
+    numa_free(B, sizeof(double) * k * n);
+    numa_free(C, sizeof(double) * m * n);
 #ifdef VERIFY
-    FREE(D, sizeof(double) * m * n);
+    numa_free(D, sizeof(double) * m * n);
 #endif
 
 #ifndef NO_MKL
@@ -138,23 +133,22 @@ int main(int argc, char **argv)
     return 0;
 }
 
-static void set_data(double *A, uint64_t size, uint64_t seed, double min_value,
+static void set_data(double *matrix, uint64_t size, uint64_t seed, double min_value,
                      double max_value)
 {
 #pragma omp parallel
     {
         uint64_t tid = omp_get_thread_num();
-        uint64_t nt = omp_get_max_threads();
-        uint64_t job_size = size / nt;
-        uint64_t start = job_size * tid;
-        uint64_t end = tid < nt - 1 ? job_size * (tid + 1) : size;
-
-        double *mat = A + start;
-        uint64_t my_size = end - start;
-
-        VSLStreamStatePtr stm;
-        vslNewStream(&stm, VSL_BRNG_MT19937, seed);
-        vdRngUniform(VSL_RNG_METHOD_UNIFORM_STD_ACCURATE, stm, my_size, mat, min_value, max_value);
-        vslDeleteStream(&stm);
+        uint64_t value = (tid * 1034871 + 10581) * seed;
+        uint64_t mul = 192499;
+        uint64_t add = 6837199;
+        for (uint64_t i = 0; i < 50 + tid; ++i)
+            value = value * mul + add;
+#pragma omp for
+        for (uint64_t i = 0; i < size; ++i)
+        {
+            value = value * mul + add;
+            matrix[i] = (double)value / (double)(uint64_t)(-1) * (max_value - min_value) + min_value;
+        }
     }
 }

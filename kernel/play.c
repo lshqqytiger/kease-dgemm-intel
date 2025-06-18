@@ -273,17 +273,14 @@ void call_dgemm(
 {
     const uint64_t cnt = (m_ / MR) * (n_ / NR) * (k_ / KB);
 
-    double *_A = NULL;
-    double *_B = NULL;
-
-    ALLOC(_A, sizeof(double) * (MB + MR) * KB);
-    ALLOC(_B, sizeof(double) * KB * NB);
+    double *_A = numa_alloc(sizeof(double) * (MB + MR) * KB);
+    double *_B = numa_alloc(sizeof(double) * KB * NB);
 
     for (uint64_t i = 0; LIKELY(i < cnt); ++i)
     {
         micro_kernel_8x24_ppc_an(KB, A, _B, C, MR);
     }
 
-    FREE(_A, sizeof(double) * (MB + MR) * KB);
-    FREE(_B, sizeof(double) * KB * NB);
+    numa_free(_A, sizeof(double) * (MB + MR) * KB);
+    numa_free(_B, sizeof(double) * KB * NB);
 }

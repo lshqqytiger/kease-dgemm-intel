@@ -14,7 +14,6 @@
 
 // #define DEBUG
 // #define PLAY
-// #define PARALLEL_WITH_OMP
 // #define ORIGIN_MC
 // #define INNER_M_N
 
@@ -22,9 +21,6 @@
 
 #include <errno.h>
 #include <pthread.h>
-#ifdef PARALLEL_WITH_OMP
-#include <omp.h>
-#endif
 #include <sched.h>
 #include <assert.h>
 #include <stdint.h>
@@ -659,7 +655,6 @@ void micro_dxpy_cc(
     }
 }
 
-// #define INNER_M_N
 void inner_kernel_ppc_anbp(
     uint64_t mm,
     uint64_t nn,
@@ -683,9 +678,6 @@ void inner_kernel_ppc_anbp(
     B_next = _B;
 
 #ifdef INNER_M_N
-#ifdef PARALLEL_WITH_OMP
-#pragma omp parallel for num_threads(NT2)
-#endif
     for (uint64_t mmi = 0; mmi < mmc; ++mmi)
     {
         uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
@@ -724,8 +716,6 @@ void inner_kernel_ppc_anbp(
             {
                 double _C[MR * NR] __attribute__((aligned(64))) = {};
                 micro_kernel_8x24_ppc_anbp(kk, A_now, _B + nni * 600, _C, MR, A_next);
-                micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
-            }
 #else
             if (LIKELY(mmm == MR && nnn == NR))
             {
@@ -735,9 +725,9 @@ void inner_kernel_ppc_anbp(
             {
                 double _C[MR * NR] __attribute__((aligned(64))) = {};
                 micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, _C, MR, A_next);
+#endif
                 micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
             }
-#endif
         }
     }
 }
@@ -757,9 +747,6 @@ void packacc(
     const double *A_now = A;
     const double *A_k_next = A;
 
-#ifdef PARALLEL_WITH_OMP
-#pragma omp parallel for num_threads(TOTAL_CORE)
-#endif
     for (uint64_t kki = 0; kki < kkc; ++kki)
     {
         uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
@@ -980,8 +967,8 @@ static void *middle_kernel(
     const double start_time = omp_get_wtime();
 #endif
 
-    ALLOC(_A, sizeof(double) * (MB + MR) * KB);
-    ALLOC(_B, sizeof(double) * KB * (NB + NR));
+    _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
+    _B = numa_alloc(sizeof(double) * KB * (NB + NR));
 
 #ifdef PLAY
     for (uint64_t i = 0; i < MB * KB; ++i)
@@ -1032,8 +1019,8 @@ static void *middle_kernel(
     }
 #endif
 
-    FREE(_A, sizeof(double) * (MB + MR) * KB);
-    FREE(_B, sizeof(double) * KB * (NB + NR));
+    numa_free(_A, sizeof(double) * (MB + MR) * KB);
+    numa_free(_B, sizeof(double) * KB * (NB + NR));
 
 #ifdef DEBUG
     const double end_time = omp_get_wtime();
@@ -1047,7 +1034,7 @@ static void *middle_kernel(
 #endif
 }
 
-uint64_t min(uint64_t a, uint64_t b)
+__forceinline uint64_t min(const uint64_t a, const uint64_t b)
 {
     return a < b ? a : b;
 }
@@ -1079,50 +1066,6 @@ void call_dgemm(
     assert(alpha == -1.0);
     assert(beta == 1.0);
 
-#ifdef PARALLEL_WITH_OMP
-    uint64_t mc = (m + MB - 1) / MB;
-    uint64_t mr = m % MB;
-    uint64_t nc = (n + NB - 1) / NB;
-    uint64_t nr = n % NB;
-    uint64_t kc = (k + KB - 1) / KB;
-    uint64_t kr = k % KB;
-
-    double *_A;
-
-    ALLOC(_A, sizeof(double) * (MB + MR) * KB);
-
-    for (uint64_t mi = 0; mi < mc; ++mi)
-    {
-        uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
-
-        for (uint64_t ki = 0; ki < kc; ++ki)
-        {
-            uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
-
-            packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
-
-#pragma omp parallel num_threads(NT1)
-            {
-                double *_B;
-                ALLOC(_B, sizeof(double) * KB * (NB + NR));
-
-#pragma omp for
-                for (uint64_t ni = 0; ni < nc; ++ni)
-                {
-                    uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
-
-                    packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
-
-                    inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
-                }
-
-                FREE(_B, sizeof(double) * KB * (NB + NR));
-            }
-        }
-    }
-
-    FREE(_A, sizeof(double) * (MB + MR) * KB);
-#else
     uint64_t mc = (m + MA - 1) / MA;
     uint64_t mr = m % MA;
     uint64_t nc = (n + NA - 1) / NA;
@@ -1204,5 +1147,4 @@ void call_dgemm(
             }
         }
     }
-#endif
 }

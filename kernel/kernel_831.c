@@ -954,7 +954,7 @@ void call_dgemm(
 
     if (_A == NULL)
     {
-        ALLOC(_A, sizeof(double) * (MB + MR) * KB);
+        _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
     }
 
     for (uint64_t mi = 0; mi < mc; ++mi)
@@ -981,8 +981,7 @@ void call_dgemm(
 
 #pragma omp parallel num_threads(NT1)
             {
-                double *_B = NULL;
-                ALLOC(_B, sizeof(double) * KB * NB);
+                double *_B = numa_alloc(sizeof(double) * KB * NB);
 
 #pragma omp for
                 for (uint64_t ni = 0; ni < nc; ++ni)
@@ -992,7 +991,7 @@ void call_dgemm(
                     packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
                     inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
                 }
-                FREE(_B, sizeof(double) * KB * NB);
+                numa_free(_B, sizeof(double) * KB * NB);
             }
 
 #endif
