@@ -24,9 +24,16 @@
 
 #define MR 8
 #define NR 24
+
+#ifndef MB
 #define MB (MR * 250) // [150] => [1, 2, 3, 5, 6, 10, 15, 25, 30, 50, 75, 150]
-#define NB (NR * 1)   // [ 50] => [1, 2, 5, 10, 25, 50]
-#define KB 64         // 64
+#endif
+#ifndef NB
+#define NB (NR * 1) // [ 50] => [1, 2, 5, 10, 25, 50]
+#endif
+#ifndef KB
+#define KB 64 // 64
+#endif
 
 #define LCAM
 // #define BDL

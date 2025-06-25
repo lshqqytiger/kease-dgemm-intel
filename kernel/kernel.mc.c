@@ -13,7 +13,6 @@
  */
 
 // #define DEBUG
-// #define PLAY
 // #define ORIGIN_MC
 // #define INNER_M_N
 
@@ -970,29 +969,6 @@ static void *middle_kernel(
     _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
     _B = numa_alloc(sizeof(double) * KB * (NB + NR));
 
-#ifdef PLAY
-    for (uint64_t i = 0; i < MB * KB; ++i)
-        _A[i] = i;
-    for (uint64_t i = 0; i < KB * NB; ++i)
-        _B[i] = i;
-
-    for (uint64_t mi = 0; mi < mc; ++mi)
-    {
-        uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
-
-        for (uint64_t ki = 0; ki < kc; ++ki)
-        {
-            uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
-
-            for (uint64_t ni = 0; ni < nc; ++ni)
-            {
-                uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
-
-                inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
-            }
-        }
-    }
-#else
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
         uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
@@ -1017,7 +993,6 @@ static void *middle_kernel(
             }
         }
     }
-#endif
 
     numa_free(_A, sizeof(double) * (MB + MR) * KB);
     numa_free(_B, sizeof(double) * KB * (NB + NR));
