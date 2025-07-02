@@ -5,6 +5,8 @@
 #define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
 #define LIKELY(expr) __builtin_expect(!!(expr), 1)
 
+#define ROUND_UP(a, b) ((a + b - 1) / b)
+
 #ifndef NUMA_NODE_MCDRAM
 #define NUMA_NODE_MCDRAM 1
 #endif

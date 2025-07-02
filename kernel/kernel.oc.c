@@ -26,7 +26,7 @@
 #define NR 24
 
 #ifndef MB
-#define MB (MR * 250) // [150] => [1, 2, 3, 5, 6, 10, 15, 25, 30, 50, 75, 150]
+#define MB 600
 #endif
 #ifndef NB
 #define NB (NR * 1) // [ 50] => [1, 2, 5, 10, 25, 50]
@@ -339,8 +339,10 @@ void micro_dxpy_cc(
     {
         for (uint64_t j = 0; j < m; ++j)
         {
-            C[i * ldc + j] += _C[i * MR + j];
+            C[j] += _C[j];
         }
+        C += ldc;
+        _C += MR;
     }
 }
 
@@ -350,65 +352,78 @@ void inner_kernel_ppc_anbp(
     uint64_t mm,
     uint64_t nn,
     uint64_t kk,
-    const double *restrict _A,
+#ifdef INNER_MN
+    const double *restrict A,
     const double *restrict _B,
+#else
+    const double *restrict _A,
+    const double *restrict B,
+#endif
     double *restrict C,
     uint64_t ldc)
 {
-    uint64_t mmc = (mm + MR - 1) / MR;
-    uint64_t mmr = mm % MR;
-    uint64_t nnc = (nn + NR - 1) / NR;
-    uint64_t nnr = nn % NR;
+    const uint64_t mmc = ROUND_UP(mm, MR);
+    uint64_t mmr = MR;
+    const uint64_t mmr_ = mm % MR;
+    if (mmr_ != 0)
+    {
+        mmr = mmr_;
+    }
 
-    const double *A_now;
-    const double *B_now;
-    const double *A_next;
-    const double *B_next;
-
-    A_next = _A;
-    B_next = _B;
+    const uint64_t nnc = ROUND_UP(nn, NR);
+    uint64_t nnr = NR;
+    const uint64_t nnr_ = nn % NR;
+    if (nnr_ != 0)
+    {
+        nnr = nnr_;
+    }
 
 #ifdef INNER_MN
+    const double *B;
+
     for (uint64_t mmi = 0; mmi < mmc; ++mmi)
     {
-        uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+        const uint64_t mmm = LIKELY(mmi != mmc - 1) ? MR : mmr;
 
-        A_now = A_next;
-        A_next = mmi != mmc - 1 ? A_next + MR * kk : _A;
-
+        B = _B;
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
-            uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
-
-            B_now = B_next;
-            B_next = nni != nnc - 1 ? B_next + NR * kk : _B;
+            const uint64_t nnn = LIKELY(nni != nnc - 1) ? NR : nnr;
 #else
+    const double *A;
+
     for (uint64_t nni = 0; nni < nnc; ++nni)
     {
-        uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+        const uint64_t nnn = LIKELY(nni != nnc - 1) ? NR : nnr;
 
-        B_now = B_next;
-        B_next = nni != nnc - 1 ? B_next + NR * kk : _B;
-
+        A = _A;
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
-
-            A_now = A_next;
-            A_next = mmi != mmc - 1 ? A_next + MR * kk : _A;
+            const uint64_t mmm = LIKELY(mmi != mmc - 1) ? MR : mmr;
 #endif
 
             if (LIKELY(mmm == MR && nnn == NR))
             {
-                micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, C + mmi * MR + nni * NR * ldc, ldc, A_next);
+                micro_kernel_8x24_ppc_anbp(kk, A, B, C + mmi * MR + nni * NR * ldc, ldc, A + MR * kk);
             }
             else
             {
-                double _C[MR * NR] __attribute__((aligned(64))) = {};
-                micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, _C, MR, A_next);
+                double _C[MR * NR] __attribute__((aligned(CACHE_LINE))) = {};
+                micro_kernel_8x24_ppc_anbp(kk, A, B, _C, MR, A + MR * kk);
                 micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
             }
+
+#ifdef INNER_MN
+            B += NR * kk;
         }
+
+        A += MR * kk;
+#else
+            A += MR * kk;
+        }
+
+        B += NR * kk;
+#endif
     }
 }
 
