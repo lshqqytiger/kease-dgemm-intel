@@ -446,7 +446,7 @@ void packacc(
     const double *A_m_next = A;
     for (uint64_t mmi = 0; mmi < mmc; ++mmi)
     {
-        uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+        const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 
         A_now = A_m_next;
         A_m_next += MR;
@@ -501,53 +501,41 @@ void packacc(
 
         for (uint64_t kki = 0; kki < kkc; ++kki)
         {
-            uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
+            const register uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
 #else
     const double *A_now = A;
     const double *A_k_next = A;
 
     for (uint64_t kki = 0; kki < kkc; ++kki)
     {
-        uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
+        const uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
 
         A_now = A_k_next;
         A_k_next += lda * CACHE_ELEM;
 
-        asm volatile(
-            " prefetchnta     (%[A])            \t\n"
-            " prefetchnta 0x40(%[A])            \t\n"
-            " prefetchnta 0x80(%[A])            \t\n"
-            " prefetchnta 0xc0(%[A])            \t\n"
-            " prefetchnta     (%[A], %[lda],1)  \t\n"
-            " prefetchnta 0x40(%[A], %[lda],1)  \t\n"
-            " prefetchnta 0x80(%[A], %[lda],1)  \t\n"
-            " prefetchnta 0xc0(%[A], %[lda],1)  \t\n"
-            " prefetchnta     (%[A], %[lda],2)  \t\n"
-            " prefetchnta 0x40(%[A], %[lda],2)  \t\n"
-            " prefetchnta 0x80(%[A], %[lda],2)  \t\n"
-            " prefetchnta 0xc0(%[A], %[lda],2)  \t\n"
-            " prefetchnta     (%[A],%[lda3],1)  \t\n"
-            " prefetchnta 0x40(%[A],%[lda3],1)  \t\n"
-            " prefetchnta 0x80(%[A],%[lda3],1)  \t\n"
-            " prefetchnta 0xc0(%[A],%[lda3],1)  \t\n"
-            " prefetchnta     (%[B])            \t\n"
-            " prefetchnta 0x40(%[B])            \t\n"
-            " prefetchnta 0x80(%[B])            \t\n"
-            " prefetchnta 0xc0(%[B])            \t\n"
-            " prefetchnta     (%[B], %[lda],1)  \t\n"
-            " prefetchnta 0x40(%[B], %[lda],1)  \t\n"
-            " prefetchnta 0x80(%[B], %[lda],1)  \t\n"
-            " prefetchnta 0xc0(%[B], %[lda],1)  \t\n"
-            " prefetchnta     (%[B], %[lda],2)  \t\n"
-            " prefetchnta 0x40(%[B], %[lda],2)  \t\n"
-            " prefetchnta 0x80(%[B], %[lda],2)  \t\n"
-            " prefetchnta 0xc0(%[B], %[lda],2)  \t\n"
-            " prefetchnta     (%[B],%[lda3],1)  \t\n"
-            " prefetchnta 0x40(%[B],%[lda3],1)  \t\n"
-            " prefetchnta 0x80(%[B],%[lda3],1)  \t\n"
-            " prefetchnta 0xc0(%[B],%[lda3],1)  \t\n"
-            :
-            : [A] "r"(A_k_next), [B] "r"(A_k_next + lda * 4), [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
+#pragma unroll(2)
+        for(uint8_t i = 0; i < 2; ++i)
+        {
+            asm volatile(
+                " prefetchnta     (%[A])            \t\n"
+                " prefetchnta 0x40(%[A])            \t\n"
+                " prefetchnta 0x80(%[A])            \t\n"
+                " prefetchnta 0xc0(%[A])            \t\n"
+                " prefetchnta     (%[A], %[lda],1)  \t\n"
+                " prefetchnta 0x40(%[A], %[lda],1)  \t\n"
+                " prefetchnta 0x80(%[A], %[lda],1)  \t\n"
+                " prefetchnta 0xc0(%[A], %[lda],1)  \t\n"
+                " prefetchnta     (%[A], %[lda],2)  \t\n"
+                " prefetchnta 0x40(%[A], %[lda],2)  \t\n"
+                " prefetchnta 0x80(%[A], %[lda],2)  \t\n"
+                " prefetchnta 0xc0(%[A], %[lda],2)  \t\n"
+                " prefetchnta     (%[A],%[lda3],1)  \t\n"
+                " prefetchnta 0x40(%[A],%[lda3],1)  \t\n"
+                " prefetchnta 0x80(%[A],%[lda3],1)  \t\n"
+                " prefetchnta 0xc0(%[A],%[lda3],1)  \t\n"
+                :
+                : [A] "r"(A_k_next + lda * 4 * i), [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
+        }
 
         /*
                 register const double* _A_k_next = _A + kki * MR * CACHE_ELEM;
@@ -591,7 +579,7 @@ void packacc(
 
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+            const register uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 #endif
 
             register double *_A_now = _A + mmi * MR * kk + kki * MR * CACHE_ELEM;
