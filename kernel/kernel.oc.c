@@ -363,43 +363,32 @@ void inner_kernel_ppc_anbp(
     uint64_t ldc)
 {
     const uint64_t mmc = ROUND_UP(mm, MR);
-    uint64_t mmr = MR;
-    const uint64_t mmr_ = mm % MR;
-    if (mmr_ != 0)
-    {
-        mmr = mmr_;
-    }
-
+    const uint64_t mmr = mm % MR;
     const uint64_t nnc = ROUND_UP(nn, NR);
-    uint64_t nnr = NR;
-    const uint64_t nnr_ = nn % NR;
-    if (nnr_ != 0)
-    {
-        nnr = nnr_;
-    }
+    const uint64_t nnr = nn % NR;
 
 #ifdef INNER_MN
     const double *B;
 
     for (uint64_t mmi = 0; mmi < mmc; ++mmi)
     {
-        const uint64_t mmm = LIKELY(mmi != mmc - 1) ? MR : mmr;
+        const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 
         B = _B;
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
-            const uint64_t nnn = LIKELY(nni != nnc - 1) ? NR : nnr;
+            const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
 #else
     const double *A;
 
     for (uint64_t nni = 0; nni < nnc; ++nni)
     {
-        const uint64_t nnn = LIKELY(nni != nnc - 1) ? NR : nnr;
+        const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
 
         A = _A;
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            const uint64_t mmm = LIKELY(mmi != mmc - 1) ? MR : mmr;
+            const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 #endif
 
             if (LIKELY(mmm == MR && nnn == NR))
@@ -436,9 +425,9 @@ void packacc(
     uint64_t lda,
     double *restrict _A)
 {
-    uint64_t mmc = (mm + MR - 1) / MR;
+    uint64_t mmc = ROUND_UP(mm, MR);
     uint64_t mmr = mm % MR;
-    uint64_t kkc = (kk + CACHE_ELEM - 1) / CACHE_ELEM;
+    uint64_t kkc = ROUND_UP(kk, CACHE_ELEM);
     uint64_t kkr = kk % CACHE_ELEM;
 
 #ifdef PACKACC_M_FIRST
@@ -683,13 +672,13 @@ void packbcr(
     uint64_t ldb,
     double *restrict _B)
 {
-    uint64_t nnc = (nn + NR - 1) / NR;
-    uint64_t nnr = nn % NR;
+    const uint64_t nnc = ROUND_UP(nn, NR);
+    const uint64_t nnr = nn % NR;
 
 #ifdef ORIGIN_PACKBCR
     for (uint64_t nni = 0; nni < nnc; ++nni)
     {
-        uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+        const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
         for (uint64_t i = 0; i < nnn; ++i)
         {
             for (uint64_t j = 0; j < kk; ++j)
@@ -699,11 +688,11 @@ void packbcr(
         }
     }
 #else
-    uint64_t kkc = (kk + 7) / 8;
-    uint64_t kkr = kk % 8;
+    const uint64_t kkc = ROUND_UP(kk, 8);
+    const uint64_t kkr = kk % 8;
     for (uint64_t j = 0; j < kkc; ++j)
     {
-        uint64_t kkk = (j != kkc - 1 || kkr == 0) ? 8 : kkr;
+        const uint64_t kkk = (j != kkc - 1 || kkr == 0) ? 8 : kkr;
         /*
         const double* B_k_next = B + (j + 6) * 8;
         asm volatile(
@@ -738,13 +727,13 @@ void packbcr(
 
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
-            uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
-            uint64_t nnnc = (nnn + 7) / 8;
-            uint64_t nnnr = nnn % 8;
+            const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+            const uint64_t nnnc = ROUND_UP(nnn, 8);
+            const uint64_t nnnr = nnn % 8;
 
             for (uint64_t i = 0; i < nnnc; ++i)
             {
-                uint64_t nnnn = (i != nnnc - 1 || nnnr == 0) ? 8 : nnnr;
+                const uint64_t nnnn = (i != nnnc - 1 || nnnr == 0) ? 8 : nnnr;
                 if (kkk == 8 && nnnn == 8)
                 {
                     transpose(_B + nni * NR * kk + i * 8 + j * NR * 8, B + nni * NR * ldb + i * 8 * ldb + j * 8, ldb);
@@ -781,9 +770,9 @@ void call_dgemm(
     double *C,
     int64_t ldc)
 {
-    uint64_t is_C_row = (layout == CblasRowMajor ? 1 : 0);
-    uint64_t is_A_row = (TransA == CblasTrans ? !is_C_row : is_C_row);
-    uint64_t is_B_row = (TransB == CblasTrans ? !is_C_row : is_C_row);
+    const uint64_t is_C_row = (layout == CblasRowMajor ? 1 : 0);
+    const uint64_t is_A_row = (TransA == CblasTrans ? !is_C_row : is_C_row);
+    const uint64_t is_B_row = (TransB == CblasTrans ? !is_C_row : is_C_row);
 
     assert(is_A_row == 0);
     assert(is_B_row == 0);
@@ -792,12 +781,12 @@ void call_dgemm(
     assert(alpha == -1.0);
     assert(beta == 1.0);
 
-    uint64_t mc = (m + MB - 1) / MB;
-    uint64_t mr = m % MB;
-    uint64_t nc = (n + NB - 1) / NB;
-    uint64_t nr = n % NB;
-    uint64_t kc = (k + KB - 1) / KB;
-    uint64_t kr = k % KB;
+    const uint64_t mc = ROUND_UP(m, MB);
+    const uint64_t mr = m % MB;
+    const uint64_t nc = ROUND_UP(n, NB);
+    const uint64_t nr = n % NB;
+    const uint64_t kc = ROUND_UP(k, KB);
+    const uint64_t kr = k % KB;
 
     static double *_A = NULL;
     static double *_B = NULL;
@@ -810,17 +799,17 @@ void call_dgemm(
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
-        uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
+        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
 
         for (uint64_t ki = 0; ki < kc; ++ki)
         {
-            uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
+            const uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
 
             packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
 
             for (uint64_t ni = 0; ni < nc; ++ni)
             {
-                uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
+                const uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
 
                 packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
 
