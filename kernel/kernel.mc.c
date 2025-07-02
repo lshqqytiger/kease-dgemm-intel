@@ -18,7 +18,6 @@
 
 #define _GNU_SOURCE
 
-#include <errno.h>
 #include <pthread.h>
 #include <sched.h>
 #include <assert.h>
@@ -936,6 +935,8 @@ struct thread_info
     uint64_t ldb;
     double *restrict C;
     uint64_t ldc;
+    double* _A;
+    double* _B;
 };
 
 static void *middle_kernel(
@@ -951,6 +952,8 @@ static void *middle_kernel(
     const uint64_t ldb = tinfo->ldb;
     double *C = tinfo->C;
     const uint64_t ldc = tinfo->ldc;
+    double *_A = tinfo->_A;
+    double *_B = tinfo->_B;
 
     uint64_t mc = (m + MB - 1) / MB;
     uint64_t mr = m % MB;
@@ -959,15 +962,9 @@ static void *middle_kernel(
     uint64_t kc = (k + KB - 1) / KB;
     uint64_t kr = k % KB;
 
-    double *_A;
-    double *_B;
-
 #ifdef DEBUG
     const double start_time = omp_get_wtime();
 #endif
-
-    _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
-    _B = numa_alloc(sizeof(double) * KB * (NB + NR));
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
@@ -993,9 +990,6 @@ static void *middle_kernel(
             }
         }
     }
-
-    numa_free(_A, sizeof(double) * (MB + MR) * KB);
-    numa_free(_B, sizeof(double) * KB * (NB + NR));
 
 #ifdef DEBUG
     const double end_time = omp_get_wtime();
@@ -1095,6 +1089,15 @@ void call_dgemm(
                     const double *B_start = B + my_n_start * ldb;
                     double *C_start = C + my_m_start * 1 + my_n_start * ldc;
 
+                    static double* _A[TOTAL_CORE] = {NULL,};
+                    static double* _B[TOTAL_CORE] = {NULL,};
+
+                    if(_A[pid] == NULL)
+                    {
+                        _A[pid] = numa_alloc(sizeof(double) * (MB + MR) * KB);
+                        _B[pid] = numa_alloc(sizeof(double) * KB * (NB + NR));
+                    }
+
                     tinfo[pid].m = my_m_size;
                     tinfo[pid].n = my_n_size;
                     tinfo[pid].k = kk;
@@ -1104,6 +1107,8 @@ void call_dgemm(
                     tinfo[pid].ldb = ldb;
                     tinfo[pid].C = C_start;
                     tinfo[pid].ldc = ldc;
+                    tinfo[pid]._A = _A[pid];
+                    tinfo[pid]._B = _B[pid];
 
                     CPU_ZERO(&mask);
                     CPU_SET(pid, &mask);

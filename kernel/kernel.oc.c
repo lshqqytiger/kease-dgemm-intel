@@ -36,7 +36,6 @@
 #endif
 
 #define LCAM
-// #define BDL
 
 void micro_kernel_8x24_ppc_anbp(
     uint64_t kk,
@@ -47,13 +46,10 @@ void micro_kernel_8x24_ppc_anbp(
     const double *restrict _A_next)
 {
     register double *tmp_C = C;
-#ifdef BDL
-    register double ldb = 600;
-#endif
 
     asm volatile(
-#ifndef LCAM
         " vmovapd (%[A]), %%zmm31         \t\n"
+#ifndef LCAM
         " vmovupd (%[C]),  %%zmm0  \t\n"
         " vmovupd (%[C], %[ldc],1),  %%zmm1  \t\n"
         " vmovupd (%[C], %[ldc],2),  %%zmm2  \t\n"
@@ -92,7 +88,6 @@ void micro_kernel_8x24_ppc_anbp(
         " vmovupd (%[C]), %%zmm28  \t\n"
         " vmovupd (%[C], %[ldc],1), %%zmm29  \t\n"
 #else
-        " vmovapd (%[A]), %%zmm31         \t\n"
         " vpxord  %%zmm0,  %%zmm0, %%zmm0 \t\n"
         " vmovapd %%zmm0,  %%zmm1         \t\n"
         " vmovapd %%zmm0,  %%zmm2         \t\n"
@@ -159,63 +154,6 @@ void micro_kernel_8x24_ppc_anbp(
     for (uint64_t i = 0; LIKELY(i < kk); ++i)
     {
         asm volatile(
-
-#ifdef BDL
-            " vmovapd       0x40(%[A]),        %%zmm30          \t\n"
-            " vfnmadd231pd      (%[B])%{1to8}, %%zmm31,  %%zmm0 \t\n"
-            " vfnmadd231pd   0x8(%[B])%{1to8}, %%zmm31,  %%zmm1 \t\n"
-            " vfnmadd231pd  0x10(%[B])%{1to8}, %%zmm31,  %%zmm2 \t\n"
-            " vfnmadd231pd  0x18(%[B])%{1to8}, %%zmm31,  %%zmm3 \t\n"
-            " vfnmadd231pd  0x20(%[B])%{1to8}, %%zmm31,  %%zmm4 \t\n"
-            " vfnmadd231pd  0x28(%[B])%{1to8}, %%zmm31,  %%zmm5 \t\n"
-            " vfnmadd231pd  0x30(%[B])%{1to8}, %%zmm31,  %%zmm6 \t\n"
-            " vfnmadd231pd  0x38(%[B])%{1to8}, %%zmm31,  %%zmm7 \t\n"
-            " vfnmadd231pd  0x40(%[B])%{1to8}, %%zmm31,  %%zmm8 \t\n"
-            " vfnmadd231pd  0x48(%[B])%{1to8}, %%zmm31,  %%zmm9 \t\n"
-            " vfnmadd231pd  0x50(%[B])%{1to8}, %%zmm31, %%zmm10 \t\n"
-            " vfnmadd231pd  0x58(%[B])%{1to8}, %%zmm31, %%zmm11 \t\n"
-            " vfnmadd231pd  0x60(%[B])%{1to8}, %%zmm31, %%zmm12 \t\n"
-            " vfnmadd231pd  0x68(%[B])%{1to8}, %%zmm31, %%zmm13 \t\n"
-            " vfnmadd231pd  0x70(%[B])%{1to8}, %%zmm31, %%zmm14 \t\n"
-            " vfnmadd231pd  0x78(%[B])%{1to8}, %%zmm31, %%zmm15 \t\n"
-            " vfnmadd231pd  0x80(%[B])%{1to8}, %%zmm31, %%zmm16 \t\n"
-            " vfnmadd231pd  0x88(%[B])%{1to8}, %%zmm31, %%zmm17 \t\n"
-            " vfnmadd231pd  0x90(%[B])%{1to8}, %%zmm31, %%zmm18 \t\n"
-            " vfnmadd231pd  0x98(%[B])%{1to8}, %%zmm31, %%zmm19 \t\n"
-            " vfnmadd231pd  0xa0(%[B])%{1to8}, %%zmm31, %%zmm20 \t\n"
-            " vfnmadd231pd  0xa8(%[B])%{1to8}, %%zmm31, %%zmm21 \t\n"
-            " vfnmadd231pd  0xb0(%[B])%{1to8}, %%zmm31, %%zmm22 \t\n"
-            " vfnmadd231pd  0xb8(%[B])%{1to8}, %%zmm31, %%zmm23 \t\n"
-
-            " vmovapd       0x80(%[A]),        %%zmm31          \t\n"
-            " vfnmadd231pd  0xc0(%[B])%{1to8}, %%zmm30,  %%zmm0 \t\n"
-            " vfnmadd231pd  0xc8(%[B])%{1to8}, %%zmm30,  %%zmm1 \t\n"
-            " vfnmadd231pd  0xd0(%[B])%{1to8}, %%zmm30,  %%zmm2 \t\n"
-            " vfnmadd231pd  0xd8(%[B])%{1to8}, %%zmm30,  %%zmm3 \t\n"
-            " vfnmadd231pd  0xe0(%[B])%{1to8}, %%zmm30,  %%zmm4 \t\n"
-            " vfnmadd231pd  0xe8(%[B])%{1to8}, %%zmm30,  %%zmm5 \t\n"
-            " vfnmadd231pd  0xf0(%[B])%{1to8}, %%zmm30,  %%zmm6 \t\n"
-            " vfnmadd231pd  0xf8(%[B])%{1to8}, %%zmm30,  %%zmm7 \t\n"
-            " vfnmadd231pd 0x100(%[B])%{1to8}, %%zmm30,  %%zmm8 \t\n"
-            " vfnmadd231pd 0x108(%[B])%{1to8}, %%zmm30,  %%zmm9 \t\n"
-            " vfnmadd231pd 0x110(%[B])%{1to8}, %%zmm30, %%zmm10 \t\n"
-            " vfnmadd231pd 0x118(%[B])%{1to8}, %%zmm30, %%zmm11 \t\n"
-            " vfnmadd231pd 0x120(%[B])%{1to8}, %%zmm30, %%zmm12 \t\n"
-            " vfnmadd231pd 0x128(%[B])%{1to8}, %%zmm30, %%zmm13 \t\n"
-            " vfnmadd231pd 0x130(%[B])%{1to8}, %%zmm30, %%zmm14 \t\n"
-            " vfnmadd231pd 0x138(%[B])%{1to8}, %%zmm30, %%zmm15 \t\n"
-            " vfnmadd231pd 0x140(%[B])%{1to8}, %%zmm30, %%zmm16 \t\n"
-            " vfnmadd231pd 0x148(%[B])%{1to8}, %%zmm30, %%zmm17 \t\n"
-            " vfnmadd231pd 0x150(%[B])%{1to8}, %%zmm30, %%zmm18 \t\n"
-            " vfnmadd231pd 0x158(%[B])%{1to8}, %%zmm30, %%zmm19 \t\n"
-            " vfnmadd231pd 0x160(%[B])%{1to8}, %%zmm30, %%zmm20 \t\n"
-            " vfnmadd231pd 0x168(%[B])%{1to8}, %%zmm30, %%zmm21 \t\n"
-            " vfnmadd231pd 0x170(%[B])%{1to8}, %%zmm30, %%zmm22 \t\n"
-            " vfnmadd231pd 0x178(%[B])%{1to8}, %%zmm30, %%zmm23 \t\n"
-
-            " add  $0x80, %[A] \t\n"
-            " add $0x180, %[B] \t\n"
-#else
             " prefetcht0   0x480(%[A])                          \t\n"
             " vmovapd       0x40(%[A]),        %%zmm30          \t\n"
             " vfnmadd231pd      (%[B])%{1to8}, %%zmm31,  %%zmm0 \t\n"
@@ -272,14 +210,8 @@ void micro_kernel_8x24_ppc_anbp(
 
             " add  $0x80, %[A] \t\n"
             " add $0x180, %[B] \t\n"
-#endif
-#ifdef BDL
-            : [A] "+r"(_A), [B] "+r"(_B)
-            : [ldb] "r"(ldb)
-#else
             : [A] "+r"(_A), [B] "+r"(_B)
             :
-#endif
             : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
               "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19",
               "zmm20", "zmm21", "zmm22", "zmm23", "zmm30", "zmm31");
@@ -466,16 +398,6 @@ void inner_kernel_ppc_anbp(
             A_next = mmi != mmc - 1 ? A_next + MR * kk : _A;
 #endif
 
-#ifdef BDL
-            if (LIKELY(mmm == MR && nnn == NR))
-            {
-                micro_kernel_8x24_ppc_anbp(kk, A_now, _B + nni * 600, C + mmi * MR + nni * NR * ldc, ldc, A_next);
-            }
-            else
-            {
-                double _C[MR * NR] __attribute__((aligned(64))) = {};
-                micro_kernel_8x24_ppc_anbp(kk, A_now, _B + nni * 600, _C, MR, A_next);
-#else
             if (LIKELY(mmm == MR && nnn == NR))
             {
                 micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, C + mmi * MR + nni * NR * ldc, ldc, A_next);
@@ -484,7 +406,6 @@ void inner_kernel_ppc_anbp(
             {
                 double _C[MR * NR] __attribute__((aligned(64))) = {};
                 micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, _C, MR, A_next);
-#endif
                 micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
             }
         }
@@ -875,8 +796,14 @@ void call_dgemm(
     uint64_t kc = (k + KB - 1) / KB;
     uint64_t kr = k % KB;
 
-    double *_A = numa_alloc(sizeof(double) * (MB + MR) * KB);
-    double *_B = numa_alloc(sizeof(double) * KB * NB);
+    static double *_A = NULL;
+    static double *_B = NULL;
+
+    if (_A == NULL)
+    {
+        _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
+        _B = numa_alloc(sizeof(double) * KB * NB);
+    }
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
@@ -892,17 +819,10 @@ void call_dgemm(
             {
                 uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
 
-#ifdef BDL
-                inner_kernel_ppc_anbp(mm, nn, kk, _A, B + ki * KB + ni * NB * ldb, C + mi * MB + ni * NB * ldc, ldc);
-#else
                 packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
 
                 inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
-#endif
             }
         }
     }
-
-    numa_free(_A, sizeof(double) * (MB + MR) * KB);
-    numa_free(_B, sizeof(double) * KB * NB);
 }
