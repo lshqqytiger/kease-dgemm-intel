@@ -64,14 +64,10 @@
 #ifndef ORIGIN_MC
 
 #define LCAM
-// #define BDL
 
 void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const double *restrict _B, double *restrict C, uint64_t ldc, const double *restrict _A_next)
 {
     register double *tmp_C = C;
-#ifdef BDL
-    register double ldb = 6000;
-#endif
 
     asm volatile(
 #ifndef LCAM
@@ -183,63 +179,6 @@ void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const do
     for (uint64_t i = 0; LIKELY(i < kk); ++i)
     {
         asm volatile(
-
-#ifdef BDL
-            " vmovapd       0x40(%[A]),        %%zmm30          \t\n"
-            " vfnmadd231pd      (%[B])%{1to8}, %%zmm31,  %%zmm0 \t\n"
-            " vfnmadd231pd   0x8(%[B])%{1to8}, %%zmm31,  %%zmm1 \t\n"
-            " vfnmadd231pd  0x10(%[B])%{1to8}, %%zmm31,  %%zmm2 \t\n"
-            " vfnmadd231pd  0x18(%[B])%{1to8}, %%zmm31,  %%zmm3 \t\n"
-            " vfnmadd231pd  0x20(%[B])%{1to8}, %%zmm31,  %%zmm4 \t\n"
-            " vfnmadd231pd  0x28(%[B])%{1to8}, %%zmm31,  %%zmm5 \t\n"
-            " vfnmadd231pd  0x30(%[B])%{1to8}, %%zmm31,  %%zmm6 \t\n"
-            " vfnmadd231pd  0x38(%[B])%{1to8}, %%zmm31,  %%zmm7 \t\n"
-            " vfnmadd231pd  0x40(%[B])%{1to8}, %%zmm31,  %%zmm8 \t\n"
-            " vfnmadd231pd  0x48(%[B])%{1to8}, %%zmm31,  %%zmm9 \t\n"
-            " vfnmadd231pd  0x50(%[B])%{1to8}, %%zmm31, %%zmm10 \t\n"
-            " vfnmadd231pd  0x58(%[B])%{1to8}, %%zmm31, %%zmm11 \t\n"
-            " vfnmadd231pd  0x60(%[B])%{1to8}, %%zmm31, %%zmm12 \t\n"
-            " vfnmadd231pd  0x68(%[B])%{1to8}, %%zmm31, %%zmm13 \t\n"
-            " vfnmadd231pd  0x70(%[B])%{1to8}, %%zmm31, %%zmm14 \t\n"
-            " vfnmadd231pd  0x78(%[B])%{1to8}, %%zmm31, %%zmm15 \t\n"
-            " vfnmadd231pd  0x80(%[B])%{1to8}, %%zmm31, %%zmm16 \t\n"
-            " vfnmadd231pd  0x88(%[B])%{1to8}, %%zmm31, %%zmm17 \t\n"
-            " vfnmadd231pd  0x90(%[B])%{1to8}, %%zmm31, %%zmm18 \t\n"
-            " vfnmadd231pd  0x98(%[B])%{1to8}, %%zmm31, %%zmm19 \t\n"
-            " vfnmadd231pd  0xa0(%[B])%{1to8}, %%zmm31, %%zmm20 \t\n"
-            " vfnmadd231pd  0xa8(%[B])%{1to8}, %%zmm31, %%zmm21 \t\n"
-            " vfnmadd231pd  0xb0(%[B])%{1to8}, %%zmm31, %%zmm22 \t\n"
-            " vfnmadd231pd  0xb8(%[B])%{1to8}, %%zmm31, %%zmm23 \t\n"
-
-            " vmovapd       0x80(%[A]),        %%zmm31          \t\n"
-            " vfnmadd231pd  0xc0(%[B])%{1to8}, %%zmm30,  %%zmm0 \t\n"
-            " vfnmadd231pd  0xc8(%[B])%{1to8}, %%zmm30,  %%zmm1 \t\n"
-            " vfnmadd231pd  0xd0(%[B])%{1to8}, %%zmm30,  %%zmm2 \t\n"
-            " vfnmadd231pd  0xd8(%[B])%{1to8}, %%zmm30,  %%zmm3 \t\n"
-            " vfnmadd231pd  0xe0(%[B])%{1to8}, %%zmm30,  %%zmm4 \t\n"
-            " vfnmadd231pd  0xe8(%[B])%{1to8}, %%zmm30,  %%zmm5 \t\n"
-            " vfnmadd231pd  0xf0(%[B])%{1to8}, %%zmm30,  %%zmm6 \t\n"
-            " vfnmadd231pd  0xf8(%[B])%{1to8}, %%zmm30,  %%zmm7 \t\n"
-            " vfnmadd231pd 0x100(%[B])%{1to8}, %%zmm30,  %%zmm8 \t\n"
-            " vfnmadd231pd 0x108(%[B])%{1to8}, %%zmm30,  %%zmm9 \t\n"
-            " vfnmadd231pd 0x110(%[B])%{1to8}, %%zmm30, %%zmm10 \t\n"
-            " vfnmadd231pd 0x118(%[B])%{1to8}, %%zmm30, %%zmm11 \t\n"
-            " vfnmadd231pd 0x120(%[B])%{1to8}, %%zmm30, %%zmm12 \t\n"
-            " vfnmadd231pd 0x128(%[B])%{1to8}, %%zmm30, %%zmm13 \t\n"
-            " vfnmadd231pd 0x130(%[B])%{1to8}, %%zmm30, %%zmm14 \t\n"
-            " vfnmadd231pd 0x138(%[B])%{1to8}, %%zmm30, %%zmm15 \t\n"
-            " vfnmadd231pd 0x140(%[B])%{1to8}, %%zmm30, %%zmm16 \t\n"
-            " vfnmadd231pd 0x148(%[B])%{1to8}, %%zmm30, %%zmm17 \t\n"
-            " vfnmadd231pd 0x150(%[B])%{1to8}, %%zmm30, %%zmm18 \t\n"
-            " vfnmadd231pd 0x158(%[B])%{1to8}, %%zmm30, %%zmm19 \t\n"
-            " vfnmadd231pd 0x160(%[B])%{1to8}, %%zmm30, %%zmm20 \t\n"
-            " vfnmadd231pd 0x168(%[B])%{1to8}, %%zmm30, %%zmm21 \t\n"
-            " vfnmadd231pd 0x170(%[B])%{1to8}, %%zmm30, %%zmm22 \t\n"
-            " vfnmadd231pd 0x178(%[B])%{1to8}, %%zmm30, %%zmm23 \t\n"
-
-            " add  $0x80, %[A] \t\n"
-            " add $0x180, %[B] \t\n"
-#else
             " prefetcht0   0x480(%[A])                          \t\n"
             " vmovapd       0x40(%[A]),        %%zmm30          \t\n"
             " vfnmadd231pd      (%[B])%{1to8}, %%zmm31,  %%zmm0 \t\n"
@@ -296,14 +235,8 @@ void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const do
 
             " add  $0x80, %[A] \t\n"
             " add $0x180, %[B] \t\n"
-#endif
-#ifdef BDL
-            : [A] "+r"(_A), [B] "+r"(_B)
-            : [ldb] "r"(ldb)
-#else
             : [A] "+r"(_A), [B] "+r"(_B)
             :
-#endif
             : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
               "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19",
               "zmm20", "zmm21", "zmm22", "zmm23", "zmm30", "zmm31");
@@ -648,8 +581,10 @@ void micro_dxpy_cc(
     {
         for (uint64_t j = 0; j < m; ++j)
         {
-            C[i * ldc + j] += _C[i * MR + j];
+            C[j] += _C[j];
         }
+        C += ldc;
+        _C += MR;
     }
 }
 
@@ -662,10 +597,10 @@ void inner_kernel_ppc_anbp(
     double *restrict C,
     uint64_t ldc)
 {
-    uint64_t mmc = (mm + MR - 1) / MR;
-    uint64_t mmr = mm % MR;
-    uint64_t nnc = (nn + NR - 1) / NR;
-    uint64_t nnr = nn % NR;
+    const uint64_t mmc = ROUND_UP(mm, MR);
+    const uint64_t mmr = mm % MR;
+    const uint64_t nnc = ROUND_UP(nn, NR);
+    const uint64_t nnr = nn % NR;
 
     const double *A_now;
     const double *B_now;
@@ -678,52 +613,41 @@ void inner_kernel_ppc_anbp(
 #ifdef INNER_M_N
     for (uint64_t mmi = 0; mmi < mmc; ++mmi)
     {
-        uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+        const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 
         const double *A_now = _A + mmi * MR * kk;
         const double *A_next = mmi != mmc - 1 ? A_now + MR * kk : _A;
 
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
-            uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+            const register uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
 
             const double *B_now = _B + nni * NR * kk;
             const double *B_next = nni != nnc - 1 ? B_now + NR * kk : _B;
 #else
     for (uint64_t nni = 0; nni < nnc; ++nni)
     {
-        uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+        const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
 
         B_now = B_next;
         B_next = nni != nnc - 1 ? B_next + NR * kk : _B;
 
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+            const register uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 
             A_now = A_next;
             A_next = mmi != mmc - 1 ? A_next + MR * kk : _A;
 #endif
 
-#ifdef BDL
-            if (LIKELY(mmm == MR && nnn == NR))
-            {
-                micro_kernel_8x24_ppc_anbp(kk, A_now, _B + nni * 600, C + mmi * MR + nni * NR * ldc, ldc, A_next);
-            }
-            else
-            {
-                double _C[MR * NR] __attribute__((aligned(64))) = {};
-                micro_kernel_8x24_ppc_anbp(kk, A_now, _B + nni * 600, _C, MR, A_next);
-#else
             if (LIKELY(mmm == MR && nnn == NR))
             {
                 micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, C + mmi * MR + nni * NR * ldc, ldc, A_next);
             }
             else
             {
-                double _C[MR * NR] __attribute__((aligned(64))) = {};
+                double _C[MR * NR] __attribute__((aligned(CACHE_LINE))) = {};
                 micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, _C, MR, A_next);
-#endif
                 micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
             }
         }
@@ -747,50 +671,38 @@ void packacc(
 
     for (uint64_t kki = 0; kki < kkc; ++kki)
     {
-        uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
+        const uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
 
         A_now = A_k_next;
         A_k_next += lda * CACHE_ELEM;
 
-        asm volatile(
-            " prefetchnta     (%[A])            \t\n"
-            " prefetchnta 0x40(%[A])            \t\n"
-            " prefetchnta 0x80(%[A])            \t\n"
-            " prefetchnta 0xc0(%[A])            \t\n"
-            " prefetchnta     (%[A], %[lda],1)  \t\n"
-            " prefetchnta 0x40(%[A], %[lda],1)  \t\n"
-            " prefetchnta 0x80(%[A], %[lda],1)  \t\n"
-            " prefetchnta 0xc0(%[A], %[lda],1)  \t\n"
-            " prefetchnta     (%[A], %[lda],2)  \t\n"
-            " prefetchnta 0x40(%[A], %[lda],2)  \t\n"
-            " prefetchnta 0x80(%[A], %[lda],2)  \t\n"
-            " prefetchnta 0xc0(%[A], %[lda],2)  \t\n"
-            " prefetchnta     (%[A],%[lda3],1)  \t\n"
-            " prefetchnta 0x40(%[A],%[lda3],1)  \t\n"
-            " prefetchnta 0x80(%[A],%[lda3],1)  \t\n"
-            " prefetchnta 0xc0(%[A],%[lda3],1)  \t\n"
-            " prefetchnta     (%[B])            \t\n"
-            " prefetchnta 0x40(%[B])            \t\n"
-            " prefetchnta 0x80(%[B])            \t\n"
-            " prefetchnta 0xc0(%[B])            \t\n"
-            " prefetchnta     (%[B], %[lda],1)  \t\n"
-            " prefetchnta 0x40(%[B], %[lda],1)  \t\n"
-            " prefetchnta 0x80(%[B], %[lda],1)  \t\n"
-            " prefetchnta 0xc0(%[B], %[lda],1)  \t\n"
-            " prefetchnta     (%[B], %[lda],2)  \t\n"
-            " prefetchnta 0x40(%[B], %[lda],2)  \t\n"
-            " prefetchnta 0x80(%[B], %[lda],2)  \t\n"
-            " prefetchnta 0xc0(%[B], %[lda],2)  \t\n"
-            " prefetchnta     (%[B],%[lda3],1)  \t\n"
-            " prefetchnta 0x40(%[B],%[lda3],1)  \t\n"
-            " prefetchnta 0x80(%[B],%[lda3],1)  \t\n"
-            " prefetchnta 0xc0(%[B],%[lda3],1)  \t\n"
-            :
-            : [A] "r"(A_k_next), [B] "r"(A_k_next + lda * 4), [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
+#pragma unroll(2)
+        for(uint8_t i = 0; i < 2; ++i)
+        {
+            asm volatile(
+                " prefetchnta     (%[A])            \t\n"
+                " prefetchnta 0x40(%[A])            \t\n"
+                " prefetchnta 0x80(%[A])            \t\n"
+                " prefetchnta 0xc0(%[A])            \t\n"
+                " prefetchnta     (%[A], %[lda],1)  \t\n"
+                " prefetchnta 0x40(%[A], %[lda],1)  \t\n"
+                " prefetchnta 0x80(%[A], %[lda],1)  \t\n"
+                " prefetchnta 0xc0(%[A], %[lda],1)  \t\n"
+                " prefetchnta     (%[A], %[lda],2)  \t\n"
+                " prefetchnta 0x40(%[A], %[lda],2)  \t\n"
+                " prefetchnta 0x80(%[A], %[lda],2)  \t\n"
+                " prefetchnta 0xc0(%[A], %[lda],2)  \t\n"
+                " prefetchnta     (%[A],%[lda3],1)  \t\n"
+                " prefetchnta 0x40(%[A],%[lda3],1)  \t\n"
+                " prefetchnta 0x80(%[A],%[lda3],1)  \t\n"
+                " prefetchnta 0xc0(%[A],%[lda3],1)  \t\n"
+                :
+                : [A] "r"(A_k_next + lda * 4 * i), [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
+        }
 
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+            const register uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 
             register double *_A_now = _A + mmi * MR * kk + kki * MR * CACHE_ELEM;
 
@@ -829,7 +741,7 @@ void packacc(
                 {
                     for (uint64_t mmmi = 0; mmmi < mmm; ++mmmi)
                     {
-                        _A_now[mmmi + kkki * MR] = A_now[mmmi + kkki * lda];
+                        _A_now[mmmi + MR * kkki] = A_now[mmmi + lda * kkki];
                     }
                 }
             }
@@ -887,23 +799,23 @@ void packbcr(
     uint64_t ldb,
     double *restrict _B)
 {
-    uint64_t nnc = (nn + NR - 1) / NR;
-    uint64_t nnr = nn % NR;
-    uint64_t kkc = (kk + 7) / 8;
-    uint64_t kkr = kk % 8;
+    const uint64_t nnc = ROUND_UP(nn, NR);
+    const uint64_t nnr = nn % NR;
+    const uint64_t kkc = ROUND_UP(kk, 8);
+    const uint64_t kkr = kk % 8;
     for (uint64_t j = 0; j < kkc; ++j)
     {
-        uint64_t kkk = (j != kkc - 1 || kkr == 0) ? 8 : kkr;
+        const uint64_t kkk = (j != kkc - 1 || kkr == 0) ? 8 : kkr;
 
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
-            uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
-            uint64_t nnnc = (nnn + 7) / 8;
-            uint64_t nnnr = nnn % 8;
+            const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+            const uint64_t nnnc = ROUND_UP(nnn, 8);
+            const uint64_t nnnr = nnn % 8;
 
             for (uint64_t i = 0; i < nnnc; ++i)
             {
-                uint64_t nnnn = (i != nnnc - 1 || nnnr == 0) ? 8 : nnnr;
+                const uint64_t nnnn = (i != nnnc - 1 || nnnr == 0) ? 8 : nnnr;
                 if (kkk == 8 && nnnn == 8)
                 {
                     transpose(_B + nni * NR * kk + i * 8 + j * NR * 8, B + nni * NR * ldb + i * 8 * ldb + j * 8, ldb);
@@ -955,12 +867,12 @@ static void *middle_kernel(
     double *_A = tinfo->_A;
     double *_B = tinfo->_B;
 
-    uint64_t mc = (m + MB - 1) / MB;
-    uint64_t mr = m % MB;
-    uint64_t nc = (n + NB - 1) / NB;
-    uint64_t nr = n % NB;
-    uint64_t kc = (k + KB - 1) / KB;
-    uint64_t kr = k % KB;
+    const uint64_t mc = ROUND_UP(m, MB);
+    const uint64_t mr = m % MB;
+    const uint64_t nc = ROUND_UP(n, NB);
+    const uint64_t nr = n % NB;
+    const uint64_t kc = ROUND_UP(k, KB);
+    const uint64_t kr = k % KB;
 
 #ifdef DEBUG
     const double start_time = omp_get_wtime();
@@ -968,25 +880,21 @@ static void *middle_kernel(
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
-        uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
+        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
 
         for (uint64_t ki = 0; ki < kc; ++ki)
         {
-            uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
+            const register uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
 
             packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
 
             for (uint64_t ni = 0; ni < nc; ++ni)
             {
-                uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
+                const register uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
 
-#ifdef BDL
-                inner_kernel_ppc_anbp(mm, nn, kk, _A, B + ki * KB + ni * NB * ldb, C + mi * MB + ni * NB * ldc, ldc);
-#else
                 packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
 
                 inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
-#endif
             }
         }
     }
@@ -1024,9 +932,9 @@ void call_dgemm(
     double *C,
     int64_t ldc)
 {
-    uint64_t is_C_row = (layout == CblasRowMajor ? 1 : 0);
-    uint64_t is_A_row = (TransA == CblasTrans ? !is_C_row : is_C_row);
-    uint64_t is_B_row = (TransB == CblasTrans ? !is_C_row : is_C_row);
+    const uint64_t is_C_row = (layout == CblasRowMajor ? 1 : 0);
+    const uint64_t is_A_row = (TransA == CblasTrans ? !is_C_row : is_C_row);
+    const uint64_t is_B_row = (TransB == CblasTrans ? !is_C_row : is_C_row);
 
     assert(is_A_row == 0);
     assert(is_B_row == 0);
@@ -1035,24 +943,24 @@ void call_dgemm(
     assert(alpha == -1.0);
     assert(beta == 1.0);
 
-    uint64_t mc = (m + MA - 1) / MA;
-    uint64_t mr = m % MA;
-    uint64_t nc = (n + NA - 1) / NA;
-    uint64_t nr = n % NA;
-    uint64_t kc = (k + KA - 1) / KA;
-    uint64_t kr = k % KA;
+    const uint64_t mc = ROUND_UP(m, MA);
+    const uint64_t mr = m % MA;
+    const uint64_t nc = ROUND_UP(n, NA);
+    const uint64_t nr = n % NA;
+    const uint64_t kc = ROUND_UP(k, KA);
+    const uint64_t kr = k % KA;
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
-        uint64_t mm = (mi != mc - 1 || mr == 0) ? MA : mr;
+        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MA : mr;
 
         for (uint64_t ki = 0; ki < kc; ++ki)
         {
-            uint64_t kk = (ki != kc - 1 || kr == 0) ? KA : kr;
+            const uint64_t kk = (ki != kc - 1 || kr == 0) ? KA : kr;
 
             for (uint64_t ni = 0; ni < nc; ++ni)
             {
-                uint64_t nn = (ni != nc - 1 || nr == 0) ? NA : nr;
+                const uint64_t nn = (ni != nc - 1 || nr == 0) ? NA : nr;
 
                 const uint64_t total_m_jobs = (mm + MR - 1) / MR;
                 const uint64_t min_each_m_jobs = total_m_jobs / CM;

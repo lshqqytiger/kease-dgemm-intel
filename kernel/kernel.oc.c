@@ -150,7 +150,7 @@ void micro_kernel_8x24_ppc_anbp(
           "zmm20", "zmm21", "zmm22", "zmm23", "zmm31");
 
     kk >>= 1;
-#pragma unroll(4)
+#pragma unroll(3)
     for (uint64_t i = 0; LIKELY(i < kk); ++i)
     {
         asm volatile(
@@ -377,7 +377,7 @@ void inner_kernel_ppc_anbp(
         B = _B;
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
-            const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+            const register uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
 #else
     const double *A;
 
@@ -388,7 +388,7 @@ void inner_kernel_ppc_anbp(
         A = _A;
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+            const register uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 #endif
 
             if (LIKELY(mmm == MR && nnn == NR))
@@ -425,10 +425,10 @@ void packacc(
     uint64_t lda,
     double *restrict _A)
 {
-    uint64_t mmc = ROUND_UP(mm, MR);
-    uint64_t mmr = mm % MR;
-    uint64_t kkc = ROUND_UP(kk, CACHE_ELEM);
-    uint64_t kkr = kk % CACHE_ELEM;
+    const uint64_t mmc = ROUND_UP(mm, MR);
+    const uint64_t mmr = mm % MR;
+    const uint64_t kkc = ROUND_UP(kk, CACHE_ELEM);
+    const uint64_t kkr = kk % CACHE_ELEM;
 
 #ifdef PACKACC_M_FIRST
     const double *A_now = A;
