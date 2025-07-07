@@ -1,5 +1,5 @@
 /**
- * @file kernel.01.mc.c
+ * @file kernel.01.oc.c
  * @author Enoch Jung
  * @brief dgemm for
  *        - core : 1 core
@@ -9,17 +9,9 @@
  *        - k     : even number
  *        - alpha : -1.0
  *        - beta  : +1.0
- * @date 2024-04-17
+ * @date 2023-10-24
  */
 
-// #define DEBUG
-// #define ORIGIN_MC
-// #define INNER_MN
-
-#define _GNU_SOURCE
-
-#include <pthread.h>
-#include <sched.h>
 #include <assert.h>
 #include <stdint.h>
 #include <immintrin.h>
@@ -30,54 +22,34 @@
 #define CACHE_LINE 64
 #define CACHE_ELEM (CACHE_LINE / 8)
 
-#define TOTAL_CORE 68
-#define NT1 17
-#define NT2 (TOTAL_CORE / NT1)
-
-#ifndef CM
-#define CM 17
-#endif
-
-#define CN (TOTAL_CORE / CM)
-
 #define MR 8
 #define NR 24
 
 #ifndef MB
-#define MB (MR * 48)
+#define MB (MR * 250) // [150] => [1, 2, 3, 5, 6, 10, 15, 25, 30, 50, 75, 150]
 #endif
-
 #ifndef NB
-#define NB (NR * 1)
+#define NB (NR * 1) // [ 50] => [1, 2, 5, 10, 25, 50]
 #endif
-
 #ifndef KB
-#define KB 64
+#define KB 64 // 64
 #endif
-
-#ifndef MA
-#define MA (MB * 1000)
-#endif
-#ifndef NA
-#define NA (NB * 1000)
-#endif
-#ifndef KA
-#define KA (KB * 1000)
-#endif
-
-// 17 8 24 75 5 64
-
-#ifndef ORIGIN_MC
 
 #define LCAM
 
-void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const double *restrict _B, double *restrict C, uint64_t ldc, const double *restrict _A_next)
+void micro_kernel_8x24_ppc_anbp(
+    uint64_t kk,
+    const double *restrict _A,
+    const double *restrict _B,
+    double *restrict C,
+    uint64_t ldc,
+    const double *restrict _A_next)
 {
     register double *tmp_C = C;
 
     asm volatile(
-#ifndef LCAM
         " vmovapd (%[A]), %%zmm31         \t\n"
+#ifndef LCAM
         " vmovupd (%[C]),  %%zmm0  \t\n"
         " vmovupd (%[C], %[ldc],1),  %%zmm1  \t\n"
         " vmovupd (%[C], %[ldc],2),  %%zmm2  \t\n"
@@ -107,78 +79,194 @@ void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const do
         " vmovupd (%[C], %[ldc],1), %%zmm21  \t\n"
         " vmovupd (%[C], %[ldc],2), %%zmm22  \t\n"
         " vmovupd (%[C], %[ldc3],1), %%zmm23  \t\n"
-    /*
-    " lea (%[C], %[ldc],4), %[C] \t\n"
-    " vmovupd (%[C]), %%zmm24  \t\n"
-    " vmovupd (%[C], %[ldc],1), %%zmm25  \t\n"
-    " vmovupd (%[C], %[ldc],2), %%zmm26  \t\n"
-    " vmovupd (%[C], %[ldc3],1), %%zmm27  \t\n"
-    " lea (%[C], %[ldc],4), %[C] \t\n"
-    " vmovupd (%[C]), %%zmm28  \t\n"
-    " vmovupd (%[C], %[ldc],1), %%zmm29  \t\n"
-    */
+        " lea (%[C], %[ldc],4), %[C] \t\n"
+        " vmovupd (%[C]), %%zmm24  \t\n"
+        " vmovupd (%[C], %[ldc],1), %%zmm25  \t\n"
+        " vmovupd (%[C], %[ldc],2), %%zmm26  \t\n"
+        " vmovupd (%[C], %[ldc3],1), %%zmm27  \t\n"
+        " lea (%[C], %[ldc],4), %[C] \t\n"
+        " vmovupd (%[C]), %%zmm28  \t\n"
+        " vmovupd (%[C], %[ldc],1), %%zmm29  \t\n"
 #else
-        " vmovapd (%[A]), %%zmm31         \t\n"
         " vpxord  %%zmm0,  %%zmm0, %%zmm0 \t\n"
         " vmovapd %%zmm0,  %%zmm1         \t\n"
         " vmovapd %%zmm0,  %%zmm2         \t\n"
         " vmovapd %%zmm0,  %%zmm3         \t\n"
+#if NR > 4
         " vmovapd %%zmm0,  %%zmm4         \t\n"
+#endif
+#if NR > 5
         " vmovapd %%zmm0,  %%zmm5         \t\n"
+#endif
+#if NR > 6
         " vmovapd %%zmm0,  %%zmm6         \t\n"
+#endif
+#if NR > 7
         " vmovapd %%zmm0,  %%zmm7         \t\n"
+#endif
+#if NR > 8
         " vmovapd %%zmm0,  %%zmm8         \t\n"
+#endif
+#if NR > 9
         " vmovapd %%zmm0,  %%zmm9         \t\n"
+#endif
+#if NR > 10
         " vmovapd %%zmm0, %%zmm10         \t\n"
+#endif
+#if NR > 11
         " vmovapd %%zmm0, %%zmm11         \t\n"
+#endif
+#if NR > 12
         " vmovapd %%zmm0, %%zmm12         \t\n"
+#endif
+#if NR > 13
         " vmovapd %%zmm0, %%zmm13         \t\n"
+#endif
+#if NR > 14
         " vmovapd %%zmm0, %%zmm14         \t\n"
+#endif
+#if NR > 15
         " vmovapd %%zmm0, %%zmm15         \t\n"
+#endif
+#if NR > 16
         " vmovapd %%zmm0, %%zmm16         \t\n"
+#endif
+#if NR > 17
         " vmovapd %%zmm0, %%zmm17         \t\n"
+#endif
+#if NR > 18
         " vmovapd %%zmm0, %%zmm18         \t\n"
+#endif
+#if NR > 19
         " vmovapd %%zmm0, %%zmm19         \t\n"
+#endif
+#if NR > 20
         " vmovapd %%zmm0, %%zmm20         \t\n"
+#endif
+#if NR > 21
         " vmovapd %%zmm0, %%zmm21         \t\n"
+#endif
+#if NR > 22
         " vmovapd %%zmm0, %%zmm22         \t\n"
+#endif
+#if NR > 23
         " vmovapd %%zmm0, %%zmm23         \t\n"
+#endif
+#if NR > 24
+        " vmovapd %%zmm0, %%zmm24         \t\n"
+#endif
+#if NR > 25
+        " vmovapd %%zmm0, %%zmm25         \t\n"
+#endif
+#if NR > 26
+        " vmovapd %%zmm0, %%zmm26         \t\n"
+#endif
+#if NR > 27
+        " vmovapd %%zmm0, %%zmm27         \t\n"
+#endif
+#if NR > 28
+        " vmovapd %%zmm0, %%zmm28         \t\n"
+#endif
+#if NR > 29
+        " vmovapd %%zmm0, %%zmm29         \t\n"
+#endif
 
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#if NR > 4
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
+#endif
+#if NR > 5
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
+#endif
+#if NR > 6
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
+#endif
+#if NR > 7
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if NR > 8
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
+#endif
+#if NR > 9
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
+#endif
+#if NR > 10
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
+#endif
+#if NR > 11
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if NR > 12
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
+#endif
+#if NR > 13
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
+#endif
+#if NR > 14
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
+#endif
+#if NR > 15
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if NR > 16
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
+#endif
+#if NR > 17
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
+#endif
+#if NR > 18
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
+#endif
+#if NR > 19
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if NR > 20
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
+#endif
+#if NR > 21
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
+#endif
+#if NR > 22
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
+#endif
+#if NR > 23
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if NR > 24
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+#endif
+#if NR > 25
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+#endif
+#if NR > 26
+        " prefetcht0 (%[C], %[ldc],2)       \t\n"
+#endif
+#if NR > 27
+        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if NR > 28
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+#endif
+#if NR > 29
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+#endif
 #endif
         : [C] "+r"(tmp_C)
         : [ldc] "r"(ldc * 8), [ldc3] "r"(ldc * 8 * 3), [A] "r"(_A)
         : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
           "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19",
-          "zmm20", "zmm21", "zmm22", "zmm23", "zmm31");
+          "zmm20", "zmm21", "zmm22", "zmm23", "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29",
+          "zmm30", "zmm31");
 
     kk >>= 1;
 #pragma unroll(4)
@@ -191,26 +279,84 @@ void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const do
             " vfnmadd231pd   0x8(%[B])%{1to8}, %%zmm31,  %%zmm1 \t\n"
             " vfnmadd231pd  0x10(%[B])%{1to8}, %%zmm31,  %%zmm2 \t\n"
             " vfnmadd231pd  0x18(%[B])%{1to8}, %%zmm31,  %%zmm3 \t\n"
+#if NR > 4
             " vfnmadd231pd  0x20(%[B])%{1to8}, %%zmm31,  %%zmm4 \t\n"
+#endif
+#if NR > 5
             " vfnmadd231pd  0x28(%[B])%{1to8}, %%zmm31,  %%zmm5 \t\n"
+#endif
+#if NR > 6
             " vfnmadd231pd  0x30(%[B])%{1to8}, %%zmm31,  %%zmm6 \t\n"
+#endif
+#if NR > 7
             " vfnmadd231pd  0x38(%[B])%{1to8}, %%zmm31,  %%zmm7 \t\n"
+#endif
+#if NR > 8
             " vfnmadd231pd  0x40(%[B])%{1to8}, %%zmm31,  %%zmm8 \t\n"
+#endif
+#if NR > 9
             " vfnmadd231pd  0x48(%[B])%{1to8}, %%zmm31,  %%zmm9 \t\n"
+#endif
+#if NR > 10
             " vfnmadd231pd  0x50(%[B])%{1to8}, %%zmm31, %%zmm10 \t\n"
+#endif
+#if NR > 11
             " vfnmadd231pd  0x58(%[B])%{1to8}, %%zmm31, %%zmm11 \t\n"
+#endif
+#if NR > 12
             " vfnmadd231pd  0x60(%[B])%{1to8}, %%zmm31, %%zmm12 \t\n"
+#endif
+#if NR > 13
             " vfnmadd231pd  0x68(%[B])%{1to8}, %%zmm31, %%zmm13 \t\n"
+#endif
+#if NR > 14
             " vfnmadd231pd  0x70(%[B])%{1to8}, %%zmm31, %%zmm14 \t\n"
+#endif
+#if NR > 15
             " vfnmadd231pd  0x78(%[B])%{1to8}, %%zmm31, %%zmm15 \t\n"
+#endif
+#if NR > 16
             " vfnmadd231pd  0x80(%[B])%{1to8}, %%zmm31, %%zmm16 \t\n"
+#endif
+#if NR > 17
             " vfnmadd231pd  0x88(%[B])%{1to8}, %%zmm31, %%zmm17 \t\n"
+#endif
+#if NR > 18
             " vfnmadd231pd  0x90(%[B])%{1to8}, %%zmm31, %%zmm18 \t\n"
+#endif
+#if NR > 19
             " vfnmadd231pd  0x98(%[B])%{1to8}, %%zmm31, %%zmm19 \t\n"
+#endif
+#if NR > 20
             " vfnmadd231pd  0xa0(%[B])%{1to8}, %%zmm31, %%zmm20 \t\n"
+#endif
+#if NR > 21
             " vfnmadd231pd  0xa8(%[B])%{1to8}, %%zmm31, %%zmm21 \t\n"
+#endif
+#if NR > 22
             " vfnmadd231pd  0xb0(%[B])%{1to8}, %%zmm31, %%zmm22 \t\n"
+#endif
+#if NR > 23
             " vfnmadd231pd  0xb8(%[B])%{1to8}, %%zmm31, %%zmm23 \t\n"
+#endif
+#if NR > 24
+            " vfnmadd231pd  0xc0(%[B])%{1to8}, %%zmm31, %%zmm24 \t\n"
+#endif
+#if NR > 25
+            " vfnmadd231pd  0xc8(%[B])%{1to8}, %%zmm31, %%zmm25 \t\n"
+#endif
+#if NR > 26
+            " vfnmadd231pd  0xd0(%[B])%{1to8}, %%zmm31, %%zmm26 \t\n"
+#endif
+#if NR > 27
+            " vfnmadd231pd  0xd8(%[B])%{1to8}, %%zmm31, %%zmm27 \t\n"
+#endif
+#if NR > 28
+            " vfnmadd231pd  0xe0(%[B])%{1to8}, %%zmm31, %%zmm28 \t\n"
+#endif
+#if NR > 29
+            " vfnmadd231pd  0xe8(%[B])%{1to8}, %%zmm31, %%zmm29 \t\n"
+#endif
 
             " prefetcht0   0x4c0(%[A])                          \t\n"
             " vmovapd       0x80(%[A]),        %%zmm31          \t\n"
@@ -218,34 +364,147 @@ void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const do
             " vfnmadd231pd  0xc8(%[B])%{1to8}, %%zmm30,  %%zmm1 \t\n"
             " vfnmadd231pd  0xd0(%[B])%{1to8}, %%zmm30,  %%zmm2 \t\n"
             " vfnmadd231pd  0xd8(%[B])%{1to8}, %%zmm30,  %%zmm3 \t\n"
+#if NR > 4
             " vfnmadd231pd  0xe0(%[B])%{1to8}, %%zmm30,  %%zmm4 \t\n"
+#endif
+#if NR > 5
             " vfnmadd231pd  0xe8(%[B])%{1to8}, %%zmm30,  %%zmm5 \t\n"
+#endif
+#if NR > 6
             " vfnmadd231pd  0xf0(%[B])%{1to8}, %%zmm30,  %%zmm6 \t\n"
+#endif
+#if NR > 7
             " vfnmadd231pd  0xf8(%[B])%{1to8}, %%zmm30,  %%zmm7 \t\n"
+#endif
+#if NR > 8
             " vfnmadd231pd 0x100(%[B])%{1to8}, %%zmm30,  %%zmm8 \t\n"
+#endif
+#if NR > 9
             " vfnmadd231pd 0x108(%[B])%{1to8}, %%zmm30,  %%zmm9 \t\n"
+#endif
+#if NR > 10
             " vfnmadd231pd 0x110(%[B])%{1to8}, %%zmm30, %%zmm10 \t\n"
+#endif
+#if NR > 11
             " vfnmadd231pd 0x118(%[B])%{1to8}, %%zmm30, %%zmm11 \t\n"
+#endif
+#if NR > 12
             " vfnmadd231pd 0x120(%[B])%{1to8}, %%zmm30, %%zmm12 \t\n"
+#endif
+#if NR > 13
             " vfnmadd231pd 0x128(%[B])%{1to8}, %%zmm30, %%zmm13 \t\n"
+#endif
+#if NR > 14
             " vfnmadd231pd 0x130(%[B])%{1to8}, %%zmm30, %%zmm14 \t\n"
+#endif
+#if NR > 15
             " vfnmadd231pd 0x138(%[B])%{1to8}, %%zmm30, %%zmm15 \t\n"
+#endif
+#if NR > 16
             " vfnmadd231pd 0x140(%[B])%{1to8}, %%zmm30, %%zmm16 \t\n"
+#endif
+#if NR > 17
             " vfnmadd231pd 0x148(%[B])%{1to8}, %%zmm30, %%zmm17 \t\n"
+#endif
+#if NR > 18
             " vfnmadd231pd 0x150(%[B])%{1to8}, %%zmm30, %%zmm18 \t\n"
+#endif
+#if NR > 19
             " vfnmadd231pd 0x158(%[B])%{1to8}, %%zmm30, %%zmm19 \t\n"
+#endif
+#if NR > 20
             " vfnmadd231pd 0x160(%[B])%{1to8}, %%zmm30, %%zmm20 \t\n"
+#endif
+#if NR > 21
             " vfnmadd231pd 0x168(%[B])%{1to8}, %%zmm30, %%zmm21 \t\n"
+#endif
+#if NR > 22
             " vfnmadd231pd 0x170(%[B])%{1to8}, %%zmm30, %%zmm22 \t\n"
+#endif
+#if NR > 23
             " vfnmadd231pd 0x178(%[B])%{1to8}, %%zmm30, %%zmm23 \t\n"
+#endif
+#if NR > 24
+            " vfnmadd231pd 0x180(%[B])%{1to8}, %%zmm30, %%zmm24 \t\n"
+#endif
+#if NR > 25
+            " vfnmadd231pd 0x188(%[B])%{1to8}, %%zmm30, %%zmm25 \t\n"
+#endif
+#if NR > 26
+            " vfnmadd231pd 0x190(%[B])%{1to8}, %%zmm30, %%zmm26 \t\n"
+#endif
+#if NR > 27
+            " vfnmadd231pd 0x198(%[B])%{1to8}, %%zmm30, %%zmm27 \t\n"
+#endif
+#if NR > 28
+            " vfnmadd231pd 0x1a0(%[B])%{1to8}, %%zmm30, %%zmm28 \t\n"
+#endif
+#if NR > 29
+            " vfnmadd231pd 0x1a8(%[B])%{1to8}, %%zmm30, %%zmm29 \t\n"
+#endif
 
             " add  $0x80, %[A] \t\n"
+#if NR > 29
+            " add $0x1e0, %[B] \t\n"
+#elif NR > 28
+            " add $0x1d0, %[B] \t\n"
+#elif NR > 27
+            " add $0x1c0, %[B] \t\n"
+#elif NR > 26
+            " add $0x1b0, %[B] \t\n"
+#elif NR > 25
+            " add $0x1a0, %[B] \t\n"
+#elif NR > 24
+            " add $0x190, %[B] \t\n"
+#elif NR > 23
             " add $0x180, %[B] \t\n"
+#elif NR > 22
+            " add $0x170, %[B] \t\n"
+#elif NR > 21
+            " add $0x160, %[B] \t\n"
+#elif NR > 20
+            " add $0x150, %[B] \t\n"
+#elif NR > 19
+            " add $0x140, %[B] \t\n"
+#elif NR > 18
+            " add $0x130, %[B] \t\n"
+#elif NR > 17
+            " add $0x120, %[B] \t\n"
+#elif NR > 16
+            " add $0x110, %[B] \t\n"
+#elif NR > 15
+            " add $0x100, %[B] \t\n"
+#elif NR > 14
+            " add  $0xf0, %[B] \t\n"
+#elif NR > 13
+            " add  $0xe0, %[B] \t\n"
+#elif NR > 12
+            " add  $0xd0, %[B] \t\n"
+#elif NR > 11
+            " add  $0xc0, %[B] \t\n"
+#elif NR > 10
+            " add  $0xb0, %[B] \t\n"
+#elif NR > 9
+            " add  $0xa0, %[B] \t\n"
+#elif NR > 8
+            " add  $0x90, %[B] \t\n"
+#elif NR > 7
+            " add  $0x80, %[B] \t\n"
+#elif NR > 6
+            " add  $0x70, %[B] \t\n"
+#elif NR > 5
+            " add  $0x60, %[B] \t\n"
+#elif NR > 4
+            " add  $0x50, %[B] \t\n"
+#else
+            " add  $0x40, %[B] \t\n"
+#endif
             : [A] "+r"(_A), [B] "+r"(_B)
             :
             : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
               "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19",
-              "zmm20", "zmm21", "zmm22", "zmm23", "zmm30", "zmm31");
+              "zmm20", "zmm21", "zmm22", "zmm23", "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29",
+              "zmm30", "zmm31");
     }
 
     asm volatile(
@@ -279,16 +538,14 @@ void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const do
         " vmovupd %%zmm21, (%[C], %[ldc],1)  \t\n"
         " vmovupd %%zmm22, (%[C], %[ldc],2)  \t\n"
         " vmovupd %%zmm23, (%[C], %[ldc3],1)  \t\n"
-    /*
-    " lea (%[C], %[ldc],4), %[C] \t\n"
-    " vmovupd %%zmm24, (%[C])  \t\n"
-    " vmovupd %%zmm25, (%[C], %[ldc],1)  \t\n"
-    " vmovupd %%zmm26, (%[C], %[ldc],2)  \t\n"
-    " vmovupd %%zmm27, (%[C], %[ldc3],1)  \t\n"
-    " lea (%[C], %[ldc],4), %[C] \t\n"
-    " vmovupd %%zmm28, (%[C])  \t\n"
-    " vmovupd %%zmm29, (%[C], %[ldc],1)  \t\n"
-    */
+        " lea (%[C], %[ldc],4), %[C] \t\n"
+        " vmovupd %%zmm24, (%[C])  \t\n"
+        " vmovupd %%zmm25, (%[C], %[ldc],1)  \t\n"
+        " vmovupd %%zmm26, (%[C], %[ldc],2)  \t\n"
+        " vmovupd %%zmm27, (%[C], %[ldc3],1)  \t\n"
+        " lea (%[C], %[ldc],4), %[C] \t\n"
+        " vmovupd %%zmm28, (%[C])  \t\n"
+        " vmovupd %%zmm29, (%[C], %[ldc],1)  \t\n"
 #else
         " prefetcht0     (%[A_next])                 \t\n"
         " prefetcht0 0x40(%[A_next])                 \t\n"
@@ -303,278 +560,184 @@ void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const do
         " vmovupd  %%zmm1, (%[C], %[ldc],1)          \t\n"
         " vmovupd  %%zmm2, (%[C], %[ldc],2)          \t\n"
         " vmovupd  %%zmm3, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
 
+#if NR > 4
+        " lea     (%[C], %[ldc],4), %[C]             \t\n"
         " vaddpd  (%[C]),            %%zmm4,  %%zmm4 \t\n"
+#endif
+#if NR > 5
         " vaddpd  (%[C], %[ldc],1),  %%zmm5,  %%zmm5 \t\n"
+#endif
+#if NR > 6
         " vaddpd  (%[C], %[ldc],2),  %%zmm6,  %%zmm6 \t\n"
+#endif
+#if NR > 7
         " vaddpd  (%[C],%[ldc3],1),  %%zmm7,  %%zmm7 \t\n"
+#endif
+#if NR > 4
         " vmovupd  %%zmm4, (%[C])                    \t\n"
+#endif
+#if NR > 5
         " vmovupd  %%zmm5, (%[C], %[ldc],1)          \t\n"
+#endif
+#if NR > 6
         " vmovupd  %%zmm6, (%[C], %[ldc],2)          \t\n"
+#endif
+#if NR > 7
         " vmovupd  %%zmm7, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
+#endif
 
+#if NR > 8
+        " lea     (%[C], %[ldc],4), %[C]             \t\n"
         " vaddpd  (%[C]),            %%zmm8,  %%zmm8 \t\n"
+#endif
+#if NR > 9
         " vaddpd  (%[C], %[ldc],1),  %%zmm9,  %%zmm9 \t\n"
+#endif
+#if NR > 10
         " vaddpd  (%[C], %[ldc],2), %%zmm10, %%zmm10 \t\n"
+#endif
+#if NR > 11
         " vaddpd  (%[C],%[ldc3],1), %%zmm11, %%zmm11 \t\n"
+#endif
+#if NR > 8
         " vmovupd  %%zmm8, (%[C])                    \t\n"
+#endif
+#if NR > 9
         " vmovupd  %%zmm9, (%[C], %[ldc],1)          \t\n"
+#endif
+#if NR > 10
         " vmovupd %%zmm10, (%[C], %[ldc],2)          \t\n"
+#endif
+#if NR > 11
         " vmovupd %%zmm11, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
+#endif
 
+#if NR > 12
+        " lea     (%[C], %[ldc],4), %[C]             \t\n"
         " vaddpd  (%[C]),           %%zmm12, %%zmm12 \t\n"
+#endif
+#if NR > 13
         " vaddpd  (%[C], %[ldc],1), %%zmm13, %%zmm13 \t\n"
+#endif
+#if NR > 14
         " vaddpd  (%[C], %[ldc],2), %%zmm14, %%zmm14 \t\n"
+#endif
+#if NR > 15
         " vaddpd  (%[C],%[ldc3],1), %%zmm15, %%zmm15 \t\n"
+#endif
+#if NR > 12
         " vmovupd %%zmm12, (%[C])                    \t\n"
+#endif
+#if NR > 13
         " vmovupd %%zmm13, (%[C], %[ldc],1)          \t\n"
+#endif
+#if NR > 14
         " vmovupd %%zmm14, (%[C], %[ldc],2)          \t\n"
+#endif
+#if NR > 15
         " vmovupd %%zmm15, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
+#endif
 
+#if NR > 16
+        " lea     (%[C], %[ldc],4), %[C]             \t\n"
         " vaddpd  (%[C]),           %%zmm16, %%zmm16 \t\n"
+#endif
+#if NR > 17
         " vaddpd  (%[C], %[ldc],1), %%zmm17, %%zmm17 \t\n"
+#endif
+#if NR > 18
         " vaddpd  (%[C], %[ldc],2), %%zmm18, %%zmm18 \t\n"
+#endif
+#if NR > 19
         " vaddpd  (%[C],%[ldc3],1), %%zmm19, %%zmm19 \t\n"
+#endif
+#if NR > 16
         " vmovupd %%zmm16, (%[C])                    \t\n"
+#endif
+#if NR > 17
         " vmovupd %%zmm17, (%[C], %[ldc],1)          \t\n"
+#endif
+#if NR > 18
         " vmovupd %%zmm18, (%[C], %[ldc],2)          \t\n"
+#endif
+#if NR > 19
         " vmovupd %%zmm19, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
+#endif
 
+#if NR > 20
+        " lea     (%[C], %[ldc],4), %[C]             \t\n"
         " vaddpd  (%[C]),           %%zmm20, %%zmm20 \t\n"
+#endif
+#if NR > 21
         " vaddpd  (%[C], %[ldc],1), %%zmm21, %%zmm21 \t\n"
+#endif
+#if NR > 22
         " vaddpd  (%[C], %[ldc],2), %%zmm22, %%zmm22 \t\n"
+#endif
+#if NR > 23
         " vaddpd  (%[C],%[ldc3],1), %%zmm23, %%zmm23 \t\n"
+#endif
+#if NR > 20
         " vmovupd %%zmm20, (%[C])                    \t\n"
+#endif
+#if NR > 21
         " vmovupd %%zmm21, (%[C], %[ldc],1)          \t\n"
+#endif
+#if NR > 22
         " vmovupd %%zmm22, (%[C], %[ldc],2)          \t\n"
+#endif
+#if NR > 23
         " vmovupd %%zmm23, (%[C],%[ldc3],1)          \t\n"
+#endif
+
+#if NR > 24
+        " lea     (%[C], %[ldc],4), %[C]             \t\n"
+        " vaddpd  (%[C]),           %%zmm24, %%zmm24 \t\n"
+#endif
+#if NR > 25
+        " vaddpd  (%[C], %[ldc],1), %%zmm25, %%zmm25 \t\n"
+#endif
+#if NR > 26
+        " vaddpd  (%[C], %[ldc],2), %%zmm26, %%zmm26 \t\n"
+#endif
+#if NR > 27
+        " vaddpd  (%[C],%[ldc3],1), %%zmm27, %%zmm27 \t\n"
+#endif
+#if NR > 24
+        " vmovupd %%zmm24, (%[C])                    \t\n"
+#endif
+#if NR > 25
+        " vmovupd %%zmm25, (%[C], %[ldc],1)          \t\n"
+#endif
+#if NR > 26
+        " vmovupd %%zmm26, (%[C], %[ldc],2)          \t\n"
+#endif
+#if NR > 27
+        " vmovupd %%zmm27, (%[C],%[ldc3],1)          \t\n"
+#endif
+
+#if NR > 28
+        " lea     (%[C], %[ldc],4), %[C]             \t\n"
+        " vaddpd  (%[C]),           %%zmm28, %%zmm28 \t\n"
+#endif
+#if NR > 29
+        " vaddpd  (%[C], %[ldc],1), %%zmm29, %%zmm29 \t\n"
+#endif
+#if NR > 28
+        " vmovupd %%zmm28, (%[C])                    \t\n"
+#endif
+#if NR > 29
+        " vmovupd %%zmm29, (%[C], %[ldc],1)          \t\n"
+#endif
 #endif
         : [C] "+r"(C)
         : [ldc] "r"(ldc * 8), [ldc3] "r"(ldc * 8 * 3), [A_next] "r"(_A_next)
         : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
           "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19",
-          "zmm20", "zmm21", "zmm22", "zmm23");
+          "zmm20", "zmm21", "zmm22", "zmm23", "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29",
+          "zmm30", "zmm31");
 }
-
-#else
-
-void micro_kernel_8x24_ppc_anbp(
-    uint64_t kk,
-    const double *restrict _A,
-    const double *restrict _B,
-    double *restrict C,
-    uint64_t ldc,
-    const double *restrict _A_next)
-{
-    register double *tmp_C = C;
-
-    asm volatile(
-        " vmovapd (%[A]), %%zmm31         \t\n"
-        " vpxord  %%zmm0,  %%zmm0, %%zmm0 \t\n"
-        " vmovapd %%zmm0,  %%zmm1         \t\n"
-        " vmovapd %%zmm0,  %%zmm2         \t\n"
-        " vmovapd %%zmm0,  %%zmm3         \t\n"
-        " vmovapd %%zmm0,  %%zmm4         \t\n"
-        " vmovapd %%zmm0,  %%zmm5         \t\n"
-        " vmovapd %%zmm0,  %%zmm6         \t\n"
-        " vmovapd %%zmm0,  %%zmm7         \t\n"
-        " vmovapd %%zmm0,  %%zmm8         \t\n"
-        " vmovapd %%zmm0,  %%zmm9         \t\n"
-        " vmovapd %%zmm0, %%zmm10         \t\n"
-        " vmovapd %%zmm0, %%zmm11         \t\n"
-        " vmovapd %%zmm0, %%zmm12         \t\n"
-        " vmovapd %%zmm0, %%zmm13         \t\n"
-        " vmovapd %%zmm0, %%zmm14         \t\n"
-        " vmovapd %%zmm0, %%zmm15         \t\n"
-        " vmovapd %%zmm0, %%zmm16         \t\n"
-        " vmovapd %%zmm0, %%zmm17         \t\n"
-        " vmovapd %%zmm0, %%zmm18         \t\n"
-        " vmovapd %%zmm0, %%zmm19         \t\n"
-        " vmovapd %%zmm0, %%zmm20         \t\n"
-        " vmovapd %%zmm0, %%zmm21         \t\n"
-        " vmovapd %%zmm0, %%zmm22         \t\n"
-        " vmovapd %%zmm0, %%zmm23         \t\n"
-
-        " prefetcht0 (%[C])                 \t\n"
-        " prefetcht0 (%[C], %[ldc],1)       \t\n"
-        " prefetcht0 (%[C], %[ldc],2)       \t\n"
-        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-        " lea        (%[C], %[ldc],4), %[C] \t\n"
-        " prefetcht0 (%[C])                 \t\n"
-        " prefetcht0 (%[C], %[ldc],1)       \t\n"
-        " prefetcht0 (%[C], %[ldc],2)       \t\n"
-        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-        " lea        (%[C], %[ldc],4), %[C] \t\n"
-        " prefetcht0 (%[C])                 \t\n"
-        " prefetcht0 (%[C], %[ldc],1)       \t\n"
-        " prefetcht0 (%[C], %[ldc],2)       \t\n"
-        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-        " lea        (%[C], %[ldc],4), %[C] \t\n"
-        " prefetcht0 (%[C])                 \t\n"
-        " prefetcht0 (%[C], %[ldc],1)       \t\n"
-        " prefetcht0 (%[C], %[ldc],2)       \t\n"
-        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-        " lea        (%[C], %[ldc],4), %[C] \t\n"
-        " prefetcht0 (%[C])                 \t\n"
-        " prefetcht0 (%[C], %[ldc],1)       \t\n"
-        " prefetcht0 (%[C], %[ldc],2)       \t\n"
-        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-        " lea        (%[C], %[ldc],4), %[C] \t\n"
-        " prefetcht0 (%[C])                 \t\n"
-        " prefetcht0 (%[C], %[ldc],1)       \t\n"
-        " prefetcht0 (%[C], %[ldc],2)       \t\n"
-        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-        : [C] "+r"(tmp_C)
-        : [ldc] "r"(ldc * 8), [ldc3] "r"(ldc * 8 * 3), [A] "r"(_A)
-        : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
-          "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19",
-          "zmm20", "zmm21", "zmm22", "zmm23", "zmm31");
-
-    kk >>= 1;
-#pragma unroll(4)
-    for (uint64_t i = 0; LIKELY(i < kk); ++i)
-    {
-        asm volatile(
-
-            " prefetcht0   0x480(%[A])                          \t\n"
-            " vmovapd       0x40(%[A]),        %%zmm30          \t\n"
-            " vfnmadd231pd      (%[B])%{1to8}, %%zmm31,  %%zmm0 \t\n"
-            " vfnmadd231pd   0x8(%[B])%{1to8}, %%zmm31,  %%zmm1 \t\n"
-            " vfnmadd231pd  0x10(%[B])%{1to8}, %%zmm31,  %%zmm2 \t\n"
-            " vfnmadd231pd  0x18(%[B])%{1to8}, %%zmm31,  %%zmm3 \t\n"
-            " vfnmadd231pd  0x20(%[B])%{1to8}, %%zmm31,  %%zmm4 \t\n"
-            " vfnmadd231pd  0x28(%[B])%{1to8}, %%zmm31,  %%zmm5 \t\n"
-            " vfnmadd231pd  0x30(%[B])%{1to8}, %%zmm31,  %%zmm6 \t\n"
-            " vfnmadd231pd  0x38(%[B])%{1to8}, %%zmm31,  %%zmm7 \t\n"
-            " vfnmadd231pd  0x40(%[B])%{1to8}, %%zmm31,  %%zmm8 \t\n"
-            " vfnmadd231pd  0x48(%[B])%{1to8}, %%zmm31,  %%zmm9 \t\n"
-            " vfnmadd231pd  0x50(%[B])%{1to8}, %%zmm31, %%zmm10 \t\n"
-            " vfnmadd231pd  0x58(%[B])%{1to8}, %%zmm31, %%zmm11 \t\n"
-            " vfnmadd231pd  0x60(%[B])%{1to8}, %%zmm31, %%zmm12 \t\n"
-            " vfnmadd231pd  0x68(%[B])%{1to8}, %%zmm31, %%zmm13 \t\n"
-            " vfnmadd231pd  0x70(%[B])%{1to8}, %%zmm31, %%zmm14 \t\n"
-            " vfnmadd231pd  0x78(%[B])%{1to8}, %%zmm31, %%zmm15 \t\n"
-            " vfnmadd231pd  0x80(%[B])%{1to8}, %%zmm31, %%zmm16 \t\n"
-            " vfnmadd231pd  0x88(%[B])%{1to8}, %%zmm31, %%zmm17 \t\n"
-            " vfnmadd231pd  0x90(%[B])%{1to8}, %%zmm31, %%zmm18 \t\n"
-            " vfnmadd231pd  0x98(%[B])%{1to8}, %%zmm31, %%zmm19 \t\n"
-            " vfnmadd231pd  0xa0(%[B])%{1to8}, %%zmm31, %%zmm20 \t\n"
-            " vfnmadd231pd  0xa8(%[B])%{1to8}, %%zmm31, %%zmm21 \t\n"
-            " vfnmadd231pd  0xb0(%[B])%{1to8}, %%zmm31, %%zmm22 \t\n"
-            " vfnmadd231pd  0xb8(%[B])%{1to8}, %%zmm31, %%zmm23 \t\n"
-
-            " prefetcht0   0x4c0(%[A])                          \t\n"
-            " vmovapd       0x80(%[A]),        %%zmm31          \t\n"
-            " vfnmadd231pd  0xc0(%[B])%{1to8}, %%zmm30,  %%zmm0 \t\n"
-            " vfnmadd231pd  0xc8(%[B])%{1to8}, %%zmm30,  %%zmm1 \t\n"
-            " vfnmadd231pd  0xd0(%[B])%{1to8}, %%zmm30,  %%zmm2 \t\n"
-            " vfnmadd231pd  0xd8(%[B])%{1to8}, %%zmm30,  %%zmm3 \t\n"
-            " vfnmadd231pd  0xe0(%[B])%{1to8}, %%zmm30,  %%zmm4 \t\n"
-            " vfnmadd231pd  0xe8(%[B])%{1to8}, %%zmm30,  %%zmm5 \t\n"
-            " vfnmadd231pd  0xf0(%[B])%{1to8}, %%zmm30,  %%zmm6 \t\n"
-            " vfnmadd231pd  0xf8(%[B])%{1to8}, %%zmm30,  %%zmm7 \t\n"
-            " vfnmadd231pd 0x100(%[B])%{1to8}, %%zmm30,  %%zmm8 \t\n"
-            " vfnmadd231pd 0x108(%[B])%{1to8}, %%zmm30,  %%zmm9 \t\n"
-            " vfnmadd231pd 0x110(%[B])%{1to8}, %%zmm30, %%zmm10 \t\n"
-            " vfnmadd231pd 0x118(%[B])%{1to8}, %%zmm30, %%zmm11 \t\n"
-            " vfnmadd231pd 0x120(%[B])%{1to8}, %%zmm30, %%zmm12 \t\n"
-            " vfnmadd231pd 0x128(%[B])%{1to8}, %%zmm30, %%zmm13 \t\n"
-            " vfnmadd231pd 0x130(%[B])%{1to8}, %%zmm30, %%zmm14 \t\n"
-            " vfnmadd231pd 0x138(%[B])%{1to8}, %%zmm30, %%zmm15 \t\n"
-            " vfnmadd231pd 0x140(%[B])%{1to8}, %%zmm30, %%zmm16 \t\n"
-            " vfnmadd231pd 0x148(%[B])%{1to8}, %%zmm30, %%zmm17 \t\n"
-            " vfnmadd231pd 0x150(%[B])%{1to8}, %%zmm30, %%zmm18 \t\n"
-            " vfnmadd231pd 0x158(%[B])%{1to8}, %%zmm30, %%zmm19 \t\n"
-            " vfnmadd231pd 0x160(%[B])%{1to8}, %%zmm30, %%zmm20 \t\n"
-            " vfnmadd231pd 0x168(%[B])%{1to8}, %%zmm30, %%zmm21 \t\n"
-            " vfnmadd231pd 0x170(%[B])%{1to8}, %%zmm30, %%zmm22 \t\n"
-            " vfnmadd231pd 0x178(%[B])%{1to8}, %%zmm30, %%zmm23 \t\n"
-
-            " add  $0x80, %[A] \t\n"
-            " add $0x180, %[B] \t\n"
-            : [A] "+r"(_A), [B] "+r"(_B)
-            :
-            : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
-              "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19",
-              "zmm20", "zmm21", "zmm22", "zmm23", "zmm30", "zmm31");
-    }
-
-    asm volatile(
-        " prefetcht0     (%[A_next])                 \t\n"
-        " prefetcht0 0x40(%[A_next])                 \t\n"
-        " prefetcht0 0x80(%[A_next])                 \t\n"
-        " prefetcht0 0xc0(%[A_next])                 \t\n"
-
-        " vaddpd  (%[C]),            %%zmm0,  %%zmm0 \t\n"
-        " vaddpd  (%[C], %[ldc],1),  %%zmm1,  %%zmm1 \t\n"
-        " vaddpd  (%[C], %[ldc],2),  %%zmm2,  %%zmm2 \t\n"
-        " vaddpd  (%[C],%[ldc3],1),  %%zmm3,  %%zmm3 \t\n"
-        " vmovupd  %%zmm0, (%[C])                    \t\n"
-        " vmovupd  %%zmm1, (%[C], %[ldc],1)          \t\n"
-        " vmovupd  %%zmm2, (%[C], %[ldc],2)          \t\n"
-        " vmovupd  %%zmm3, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
-
-        " vaddpd  (%[C]),            %%zmm4,  %%zmm4 \t\n"
-        " vaddpd  (%[C], %[ldc],1),  %%zmm5,  %%zmm5 \t\n"
-        " vaddpd  (%[C], %[ldc],2),  %%zmm6,  %%zmm6 \t\n"
-        " vaddpd  (%[C],%[ldc3],1),  %%zmm7,  %%zmm7 \t\n"
-        " vmovupd  %%zmm4, (%[C])                    \t\n"
-        " vmovupd  %%zmm5, (%[C], %[ldc],1)          \t\n"
-        " vmovupd  %%zmm6, (%[C], %[ldc],2)          \t\n"
-        " vmovupd  %%zmm7, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
-
-        " vaddpd  (%[C]),            %%zmm8,  %%zmm8 \t\n"
-        " vaddpd  (%[C], %[ldc],1),  %%zmm9,  %%zmm9 \t\n"
-        " vaddpd  (%[C], %[ldc],2), %%zmm10, %%zmm10 \t\n"
-        " vaddpd  (%[C],%[ldc3],1), %%zmm11, %%zmm11 \t\n"
-        " vmovupd  %%zmm8, (%[C])                    \t\n"
-        " vmovupd  %%zmm9, (%[C], %[ldc],1)          \t\n"
-        " vmovupd %%zmm10, (%[C], %[ldc],2)          \t\n"
-        " vmovupd %%zmm11, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
-
-        " vaddpd  (%[C]),           %%zmm12, %%zmm12 \t\n"
-        " vaddpd  (%[C], %[ldc],1), %%zmm13, %%zmm13 \t\n"
-        " vaddpd  (%[C], %[ldc],2), %%zmm14, %%zmm14 \t\n"
-        " vaddpd  (%[C],%[ldc3],1), %%zmm15, %%zmm15 \t\n"
-        " vmovupd %%zmm12, (%[C])                    \t\n"
-        " vmovupd %%zmm13, (%[C], %[ldc],1)          \t\n"
-        " vmovupd %%zmm14, (%[C], %[ldc],2)          \t\n"
-        " vmovupd %%zmm15, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
-
-        " vaddpd  (%[C]),           %%zmm16, %%zmm16 \t\n"
-        " vaddpd  (%[C], %[ldc],1), %%zmm17, %%zmm17 \t\n"
-        " vaddpd  (%[C], %[ldc],2), %%zmm18, %%zmm18 \t\n"
-        " vaddpd  (%[C],%[ldc3],1), %%zmm19, %%zmm19 \t\n"
-        " vmovupd %%zmm16, (%[C])                    \t\n"
-        " vmovupd %%zmm17, (%[C], %[ldc],1)          \t\n"
-        " vmovupd %%zmm18, (%[C], %[ldc],2)          \t\n"
-        " vmovupd %%zmm19, (%[C],%[ldc3],1)          \t\n"
-        " lea     (%[C], %[ldc],4), %[C]             \t\n"
-
-        " vaddpd  (%[C]),           %%zmm20, %%zmm20 \t\n"
-        " vaddpd  (%[C], %[ldc],1), %%zmm21, %%zmm21 \t\n"
-        " vaddpd  (%[C], %[ldc],2), %%zmm22, %%zmm22 \t\n"
-        " vaddpd  (%[C],%[ldc3],1), %%zmm23, %%zmm23 \t\n"
-        " vmovupd %%zmm20, (%[C])                    \t\n"
-        " vmovupd %%zmm21, (%[C], %[ldc],1)          \t\n"
-        " vmovupd %%zmm22, (%[C], %[ldc],2)          \t\n"
-        " vmovupd %%zmm23, (%[C],%[ldc3],1)          \t\n"
-        : [C] "+r"(C)
-        : [ldc] "r"(ldc * 8), [ldc3] "r"(ldc * 8 * 3), [A_next] "r"(_A_next)
-        : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
-          "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19",
-          "zmm20", "zmm21", "zmm22", "zmm23");
-}
-#endif
 
 void micro_dxpy_cc(
     uint64_t m,
@@ -587,12 +750,12 @@ void micro_dxpy_cc(
     {
         for (uint64_t j = 0; j < m; ++j)
         {
-            C[j] += _C[j];
+            C[i * ldc + j] += _C[i * MR + j];
         }
-        C += ldc;
-        _C += MR;
     }
 }
+
+// #define INNER_MN
 
 void inner_kernel_ppc_anbp(
     uint64_t mm,
@@ -603,10 +766,10 @@ void inner_kernel_ppc_anbp(
     double *restrict C,
     uint64_t ldc)
 {
-    const uint64_t mmc = ROUND_UP(mm, MR);
-    const uint64_t mmr = mm % MR;
-    const uint64_t nnc = ROUND_UP(nn, NR);
-    const uint64_t nnr = nn % NR;
+    uint64_t mmc = (mm + MR - 1) / MR;
+    uint64_t mmr = mm % MR;
+    uint64_t nnc = (nn + NR - 1) / NR;
+    uint64_t nnr = nn % NR;
 
     const double *A_now;
     const double *B_now;
@@ -619,28 +782,28 @@ void inner_kernel_ppc_anbp(
 #ifdef INNER_MN
     for (uint64_t mmi = 0; mmi < mmc; ++mmi)
     {
-        const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+        uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 
-        const double *A_now = _A + mmi * MR * kk;
-        const double *A_next = mmi != mmc - 1 ? A_now + MR * kk : _A;
+        A_now = A_next;
+        A_next = mmi != mmc - 1 ? A_next + MR * kk : _A;
 
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
-            const register uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+            uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
 
-            const double *B_now = _B + nni * NR * kk;
-            const double *B_next = nni != nnc - 1 ? B_now + NR * kk : _B;
+            B_now = B_next;
+            B_next = nni != nnc - 1 ? B_next + NR * kk : _B;
 #else
     for (uint64_t nni = 0; nni < nnc; ++nni)
     {
-        const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+        uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
 
         B_now = B_next;
         B_next = nni != nnc - 1 ? B_next + NR * kk : _B;
 
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            const register uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+            uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 
             A_now = A_next;
             A_next = mmi != mmc - 1 ? A_next + MR * kk : _A;
@@ -652,13 +815,15 @@ void inner_kernel_ppc_anbp(
             }
             else
             {
-                double _C[MR * NR] __attribute__((aligned(CACHE_LINE))) = {};
+                double _C[MR * NR] __attribute__((aligned(64))) = {};
                 micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, _C, MR, A_next);
                 micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
             }
         }
     }
 }
+
+// #define PACKACC_M_FIRST
 
 void packacc(
     uint64_t mm,
@@ -672,43 +837,158 @@ void packacc(
     uint64_t kkc = (kk + CACHE_ELEM - 1) / CACHE_ELEM;
     uint64_t kkr = kk % CACHE_ELEM;
 
+#ifdef PACKACC_M_FIRST
+    const double *A_now = A;
+    const double *A_m_next = A;
+    for (uint64_t mmi = 0; mmi < mmc; ++mmi)
+    {
+        uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+
+        A_now = A_m_next;
+        A_m_next += MR;
+
+        /*
+                register const double* tmp_A = A_m_next;
+
+                asm volatile(
+                " prefetcht0 (%[A])                 \t\n"
+                " prefetcht0 (%[A], %[lda],1)       \t\n"
+                " prefetcht0 (%[A], %[lda],2)       \t\n"
+                " prefetcht0 (%[A],%[lda3],1)       \t\n"
+                " lea        (%[A], %[lda],4), %[A] \t\n"
+                " prefetcht0 (%[A])                 \t\n"
+                " prefetcht0 (%[A], %[lda],1)       \t\n"
+                " prefetcht0 (%[A], %[lda],2)       \t\n"
+                " prefetcht0 (%[A],%[lda3],1)       \t\n"
+                " lea        (%[A], %[lda],4), %[A] \t\n"
+                " prefetcht0 (%[A])                 \t\n"
+                " prefetcht0 (%[A], %[lda],1)       \t\n"
+                " prefetcht0 (%[A], %[lda],2)       \t\n"
+                " prefetcht0 (%[A],%[lda3],1)       \t\n"
+                " lea        (%[A], %[lda],4), %[A] \t\n"
+                " prefetcht0 (%[A])                 \t\n"
+                " prefetcht0 (%[A], %[lda],1)       \t\n"
+                " prefetcht0 (%[A], %[lda],2)       \t\n"
+                " prefetcht0 (%[A],%[lda3],1)       \t\n"
+                " lea        (%[A], %[lda],4), %[A] \t\n"
+                " prefetcht0 (%[A])                 \t\n"
+                " prefetcht0 (%[A], %[lda],1)       \t\n"
+                " prefetcht0 (%[A], %[lda],2)       \t\n"
+                " prefetcht0 (%[A],%[lda3],1)       \t\n"
+                " lea        (%[A], %[lda],4), %[A] \t\n"
+                " prefetcht0 (%[A])                 \t\n"
+                " prefetcht0 (%[A], %[lda],1)       \t\n"
+                " prefetcht0 (%[A], %[lda],2)       \t\n"
+                " prefetcht0 (%[A],%[lda3],1)       \t\n"
+                " lea        (%[A], %[lda],4), %[A] \t\n"
+                " prefetcht0 (%[A])                 \t\n"
+                " prefetcht0 (%[A], %[lda],1)       \t\n"
+                " prefetcht0 (%[A], %[lda],2)       \t\n"
+                " prefetcht0 (%[A],%[lda3],1)       \t\n"
+                " lea        (%[A], %[lda],4), %[A] \t\n"
+                " prefetcht0 (%[A])                 \t\n"
+                " prefetcht0 (%[A], %[lda],1)       \t\n"
+                " prefetcht0 (%[A], %[lda],2)       \t\n"
+                " prefetcht0 (%[A],%[lda3],1)       \t\n"
+                : [A]"+r"(tmp_A)
+                : [lda]"r"(lda*8), [lda3]"r"(lda*8*3)
+                );
+                */
+
+        for (uint64_t kki = 0; kki < kkc; ++kki)
+        {
+            uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
+#else
     const double *A_now = A;
     const double *A_k_next = A;
 
     for (uint64_t kki = 0; kki < kkc; ++kki)
     {
-        const uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
+        uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
 
         A_now = A_k_next;
         A_k_next += lda * CACHE_ELEM;
 
-#pragma unroll(2)
-        for (uint8_t i = 0; i < 2; ++i)
-        {
-            asm volatile(
-                " prefetchnta     (%[A])            \t\n"
-                " prefetchnta 0x40(%[A])            \t\n"
-                " prefetchnta 0x80(%[A])            \t\n"
-                " prefetchnta 0xc0(%[A])            \t\n"
-                " prefetchnta     (%[A], %[lda],1)  \t\n"
-                " prefetchnta 0x40(%[A], %[lda],1)  \t\n"
-                " prefetchnta 0x80(%[A], %[lda],1)  \t\n"
-                " prefetchnta 0xc0(%[A], %[lda],1)  \t\n"
-                " prefetchnta     (%[A], %[lda],2)  \t\n"
-                " prefetchnta 0x40(%[A], %[lda],2)  \t\n"
-                " prefetchnta 0x80(%[A], %[lda],2)  \t\n"
-                " prefetchnta 0xc0(%[A], %[lda],2)  \t\n"
-                " prefetchnta     (%[A],%[lda3],1)  \t\n"
-                " prefetchnta 0x40(%[A],%[lda3],1)  \t\n"
-                " prefetchnta 0x80(%[A],%[lda3],1)  \t\n"
-                " prefetchnta 0xc0(%[A],%[lda3],1)  \t\n"
+        asm volatile(
+            " prefetchnta     (%[A])            \t\n"
+            " prefetchnta 0x40(%[A])            \t\n"
+            " prefetchnta 0x80(%[A])            \t\n"
+            " prefetchnta 0xc0(%[A])            \t\n"
+            " prefetchnta     (%[A], %[lda],1)  \t\n"
+            " prefetchnta 0x40(%[A], %[lda],1)  \t\n"
+            " prefetchnta 0x80(%[A], %[lda],1)  \t\n"
+            " prefetchnta 0xc0(%[A], %[lda],1)  \t\n"
+            " prefetchnta     (%[A], %[lda],2)  \t\n"
+            " prefetchnta 0x40(%[A], %[lda],2)  \t\n"
+            " prefetchnta 0x80(%[A], %[lda],2)  \t\n"
+            " prefetchnta 0xc0(%[A], %[lda],2)  \t\n"
+            " prefetchnta     (%[A],%[lda3],1)  \t\n"
+            " prefetchnta 0x40(%[A],%[lda3],1)  \t\n"
+            " prefetchnta 0x80(%[A],%[lda3],1)  \t\n"
+            " prefetchnta 0xc0(%[A],%[lda3],1)  \t\n"
+            " prefetchnta     (%[B])            \t\n"
+            " prefetchnta 0x40(%[B])            \t\n"
+            " prefetchnta 0x80(%[B])            \t\n"
+            " prefetchnta 0xc0(%[B])            \t\n"
+            " prefetchnta     (%[B], %[lda],1)  \t\n"
+            " prefetchnta 0x40(%[B], %[lda],1)  \t\n"
+            " prefetchnta 0x80(%[B], %[lda],1)  \t\n"
+            " prefetchnta 0xc0(%[B], %[lda],1)  \t\n"
+            " prefetchnta     (%[B], %[lda],2)  \t\n"
+            " prefetchnta 0x40(%[B], %[lda],2)  \t\n"
+            " prefetchnta 0x80(%[B], %[lda],2)  \t\n"
+            " prefetchnta 0xc0(%[B], %[lda],2)  \t\n"
+            " prefetchnta     (%[B],%[lda3],1)  \t\n"
+            " prefetchnta 0x40(%[B],%[lda3],1)  \t\n"
+            " prefetchnta 0x80(%[B],%[lda3],1)  \t\n"
+            " prefetchnta 0xc0(%[B],%[lda3],1)  \t\n"
+            :
+            : [A] "r"(A_k_next), [B] "r"(A_k_next + lda * 4), [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
+
+        /*
+                register const double* _A_k_next = _A + kki * MR * CACHE_ELEM;
+                asm volatile(
+                " prefetcht0      (%[A0])            \t\n"
+                " prefetcht0  0x40(%[A0])            \t\n"
+                " prefetcht0  0x80(%[A0])            \t\n"
+                " prefetcht0  0xc0(%[A0])            \t\n"
+                " prefetcht0 0x100(%[A0])            \t\n"
+                " prefetcht0 0x140(%[A0])            \t\n"
+                " prefetcht0 0x180(%[A0])            \t\n"
+                " prefetcht0 0x1c0(%[A0])            \t\n"
+                " prefetcht0      (%[A1])            \t\n"
+                " prefetcht0  0x40(%[A1])            \t\n"
+                " prefetcht0  0x80(%[A1])            \t\n"
+                " prefetcht0  0xc0(%[A1])            \t\n"
+                " prefetcht0 0x100(%[A1])            \t\n"
+                " prefetcht0 0x140(%[A1])            \t\n"
+                " prefetcht0 0x180(%[A1])            \t\n"
+                " prefetcht0 0x1c0(%[A1])            \t\n"
+                " prefetcht0      (%[A2])            \t\n"
+                " prefetcht0  0x40(%[A2])            \t\n"
+                " prefetcht0  0x80(%[A2])            \t\n"
+                " prefetcht0  0xc0(%[A2])            \t\n"
+                " prefetcht0 0x100(%[A2])            \t\n"
+                " prefetcht0 0x140(%[A2])            \t\n"
+                " prefetcht0 0x180(%[A2])            \t\n"
+                " prefetcht0 0x1c0(%[A2])            \t\n"
+                " prefetcht0      (%[A3])            \t\n"
+                " prefetcht0  0x40(%[A3])            \t\n"
+                " prefetcht0  0x80(%[A3])            \t\n"
+                " prefetcht0  0xc0(%[A3])            \t\n"
+                " prefetcht0 0x100(%[A3])            \t\n"
+                " prefetcht0 0x140(%[A3])            \t\n"
+                " prefetcht0 0x180(%[A3])            \t\n"
+                " prefetcht0 0x1c0(%[A3])            \t\n"
                 :
-                : [A] "r"(A_k_next + lda * 4 * i), [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
-        }
+                : [A0]"r"(_A_k_next), [A1]"r"(_A_k_next+MR*kk), [A2]"r"(_A_k_next+MR*kk*2), [A3]"r"(_A_k_next+MR*kk*3)
+                );
+                */
 
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            const register uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+            uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+#endif
 
             register double *_A_now = _A + mmi * MR * kk + kki * MR * CACHE_ELEM;
 
@@ -747,12 +1027,16 @@ void packacc(
                 {
                     for (uint64_t mmmi = 0; mmmi < mmm; ++mmmi)
                     {
-                        _A_now[mmmi + MR * kkki] = A_now[mmmi + lda * kkki];
+                        _A_now[mmmi + kkki * MR] = A_now[mmmi + kkki * lda];
                     }
                 }
             }
 
+#ifdef PACKACC_M_FIRST
+            A_now += CACHE_ELEM * lda;
+#else
             A_now += MR;
+#endif
         }
     }
 }
@@ -798,6 +1082,8 @@ void transpose(double *dst, const double *src, int ld)
     _mm512_store_pd(dst + 7 * NR, r07);
 }
 
+// #define ORIGIN_PACKBCR
+
 void packbcr(
     uint64_t kk,
     uint64_t nn,
@@ -805,23 +1091,68 @@ void packbcr(
     uint64_t ldb,
     double *restrict _B)
 {
-    const uint64_t nnc = ROUND_UP(nn, NR);
-    const uint64_t nnr = nn % NR;
-    const uint64_t kkc = ROUND_UP(kk, 8);
-    const uint64_t kkr = kk % 8;
+    uint64_t nnc = (nn + NR - 1) / NR;
+    uint64_t nnr = nn % NR;
+
+#ifdef ORIGIN_PACKBCR
+    for (uint64_t nni = 0; nni < nnc; ++nni)
+    {
+        uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+        for (uint64_t i = 0; i < nnn; ++i)
+        {
+            for (uint64_t j = 0; j < kk; ++j)
+            {
+                _B[nni * NR * kk + i + j * NR] = B[nni * NR * ldb + i * ldb + j];
+            }
+        }
+    }
+#else
+    uint64_t kkc = (kk + 7) / 8;
+    uint64_t kkr = kk % 8;
     for (uint64_t j = 0; j < kkc; ++j)
     {
-        const uint64_t kkk = (j != kkc - 1 || kkr == 0) ? 8 : kkr;
+        uint64_t kkk = (j != kkc - 1 || kkr == 0) ? 8 : kkr;
+        /*
+        const double* B_k_next = B + (j + 6) * 8;
+        asm volatile(
+        " prefetchnta (%[B0])            \t\n"
+        " prefetchnta (%[B0], %[ldb],1)  \t\n"
+        " prefetchnta (%[B0], %[ldb],2)  \t\n"
+        " prefetchnta (%[B0],%[ldb3],1)  \t\n"
+        " prefetchnta (%[B4])            \t\n"
+        " prefetchnta (%[B4], %[ldb],1)  \t\n"
+        " prefetchnta (%[B4], %[ldb],2)  \t\n"
+        " prefetchnta (%[B4],%[ldb3],1)  \t\n"
+        " prefetchnta (%[B8])            \t\n"
+        " prefetchnta (%[B8], %[ldb],1)  \t\n"
+        " prefetchnta (%[B8], %[ldb],2)  \t\n"
+        " prefetchnta (%[B8],%[ldb3],1)  \t\n"
+        " prefetchnta (%[B12])            \t\n"
+        " prefetchnta (%[B12], %[ldb],1)  \t\n"
+        " prefetchnta (%[B12], %[ldb],2)  \t\n"
+        " prefetchnta (%[B12],%[ldb3],1)  \t\n"
+        " prefetchnta (%[B16])            \t\n"
+        " prefetchnta (%[B16], %[ldb],1)  \t\n"
+        " prefetchnta (%[B16], %[ldb],2)  \t\n"
+        " prefetchnta (%[B16],%[ldb3],1)  \t\n"
+        " prefetchnta (%[B20])            \t\n"
+        " prefetchnta (%[B20], %[ldb],1)  \t\n"
+        " prefetchnta (%[B20], %[ldb],2)  \t\n"
+        " prefetchnta (%[B20],%[ldb3],1)  \t\n"
+        :
+        : [B0]"r"(B_k_next), [B4]"r"(B_k_next+ldb*4), [B8]"r"(B_k_next+ldb*8), [B12]"r"(B_k_next+ldb*12), [B16]"r"(B_k_next+ldb*16), [B20]"r"(B_k_next+ldb*20), [ldb]"r"(ldb), [ldb3]"r"(ldb*3)
+        );
+        */
 
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
-            const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
-            const uint64_t nnnc = ROUND_UP(nnn, 8);
-            const uint64_t nnnr = nnn % 8;
+            uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+            uint64_t nnnc = (nnn + 7) / 8;
+            uint64_t nnnr = nnn % 8;
 
             for (uint64_t i = 0; i < nnnc; ++i)
             {
-                const uint64_t nnnn = (i != nnnc - 1 || nnnr == 0) ? 8 : nnnr;
+                uint64_t nnnn = (i != nnnc - 1 || nnnr == 0) ? 8 : nnnr;
                 if (kkk == 8 && nnnn == 8)
                 {
                     transpose(_B + nni * NR * kk + i * 8 + j * NR * 8, B + nni * NR * ldb + i * 8 * ldb + j * 8, ldb);
@@ -839,87 +1170,7 @@ void packbcr(
             }
         }
     }
-}
-
-struct thread_info
-{
-    pthread_t thread_id;
-    uint64_t m;
-    uint64_t n;
-    uint64_t k;
-    const double *A;
-    uint64_t lda;
-    const double *B;
-    uint64_t ldb;
-    double *restrict C;
-    uint64_t ldc;
-    double *_A;
-    double *_B;
-};
-
-static void *middle_kernel(
-    void *arg)
-{
-    struct thread_info *tinfo = arg;
-    const uint64_t m = tinfo->m;
-    const uint64_t n = tinfo->n;
-    const uint64_t k = tinfo->k;
-    const double *A = tinfo->A;
-    const uint64_t lda = tinfo->lda;
-    const double *B = tinfo->B;
-    const uint64_t ldb = tinfo->ldb;
-    double *C = tinfo->C;
-    const uint64_t ldc = tinfo->ldc;
-    double *_A = tinfo->_A;
-    double *_B = tinfo->_B;
-
-    const uint64_t mc = ROUND_UP(m, MB);
-    const uint64_t mr = m % MB;
-    const uint64_t nc = ROUND_UP(n, NB);
-    const uint64_t nr = n % NB;
-    const uint64_t kc = ROUND_UP(k, KB);
-    const uint64_t kr = k % KB;
-
-#ifdef DEBUG
-    const double start_time = omp_get_wtime();
 #endif
-
-    for (uint64_t mi = 0; mi < mc; ++mi)
-    {
-        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
-
-        for (uint64_t ki = 0; ki < kc; ++ki)
-        {
-            const register uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
-
-            packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
-
-            for (uint64_t ni = 0; ni < nc; ++ni)
-            {
-                const register uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
-
-                packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
-
-                inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
-            }
-        }
-    }
-
-#ifdef DEBUG
-    const double end_time = omp_get_wtime();
-    double *mem;
-    mem = malloc(sizeof(double));
-    *mem = (end_time - start_time);
-
-    return (void *)mem;
-#else
-    return (void *)0;
-#endif
-}
-
-__forceinline uint64_t min(const uint64_t a, const uint64_t b)
-{
-    return a < b ? a : b;
 }
 
 void call_dgemm(
@@ -938,9 +1189,9 @@ void call_dgemm(
     double *C,
     int64_t ldc)
 {
-    const uint64_t is_C_row = (layout == CblasRowMajor ? 1 : 0);
-    const uint64_t is_A_row = (TransA == CblasTrans ? !is_C_row : is_C_row);
-    const uint64_t is_B_row = (TransB == CblasTrans ? !is_C_row : is_C_row);
+    uint64_t is_C_row = (layout == CblasRowMajor ? 1 : 0);
+    uint64_t is_A_row = (TransA == CblasTrans ? !is_C_row : is_C_row);
+    uint64_t is_B_row = (TransB == CblasTrans ? !is_C_row : is_C_row);
 
     assert(is_A_row == 0);
     assert(is_B_row == 0);
@@ -949,100 +1200,37 @@ void call_dgemm(
     assert(alpha == -1.0);
     assert(beta == 1.0);
 
-    const uint64_t mc = ROUND_UP(m, MA);
-    const uint64_t mr = m % MA;
-    const uint64_t nc = ROUND_UP(n, NA);
-    const uint64_t nr = n % NA;
-    const uint64_t kc = ROUND_UP(k, KA);
-    const uint64_t kr = k % KA;
+    uint64_t mc = (m + MB - 1) / MB;
+    uint64_t mr = m % MB;
+    uint64_t nc = (n + NB - 1) / NB;
+    uint64_t nr = n % NB;
+    uint64_t kc = (k + KB - 1) / KB;
+    uint64_t kr = k % KB;
+
+    double *_A = numa_alloc(sizeof(double) * (MB + MR) * KB);
+    double *_B = numa_alloc(sizeof(double) * KB * NB);
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
-        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MA : mr;
+        uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
 
         for (uint64_t ki = 0; ki < kc; ++ki)
         {
-            const uint64_t kk = (ki != kc - 1 || kr == 0) ? KA : kr;
+            uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
+
+            packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
 
             for (uint64_t ni = 0; ni < nc; ++ni)
             {
-                const uint64_t nn = (ni != nc - 1 || nr == 0) ? NA : nr;
+                uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
 
-                const uint64_t total_m_jobs = (mm + MR - 1) / MR;
-                const uint64_t min_each_m_jobs = total_m_jobs / CM;
-                const uint64_t rest_m_jobs = total_m_jobs % CM;
+                packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
 
-                const uint64_t total_n_jobs = (nn + NR - 1) / NR;
-                const uint64_t min_each_n_jobs = total_n_jobs / CN;
-                const uint64_t rest_n_jobs = total_n_jobs % CN;
-
-                struct thread_info tinfo[TOTAL_CORE];
-                cpu_set_t mask;
-
-                pthread_attr_t attr;
-                pthread_attr_init(&attr);
-
-                for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
-                {
-                    const uint64_t m_pid = pid % CM;
-                    const uint64_t n_pid = pid / CM;
-
-                    const uint64_t my_m_idx_start = (m_pid)*min_each_m_jobs + min(m_pid, rest_m_jobs);
-                    const uint64_t my_m_idx_end = (m_pid + 1) * min_each_m_jobs + min(m_pid + 1, rest_m_jobs);
-                    const uint64_t my_m_start = min(my_m_idx_start * MR, mm);
-                    const uint64_t my_m_end = min(my_m_idx_end * MR, mm);
-                    const uint64_t my_m_size = my_m_end - my_m_start;
-
-                    const uint64_t my_n_idx_start = (n_pid)*min_each_n_jobs + min(n_pid, rest_n_jobs);
-                    const uint64_t my_n_idx_end = (n_pid + 1) * min_each_n_jobs + min(n_pid + 1, rest_n_jobs);
-                    const uint64_t my_n_start = min(my_n_idx_start * NR, nn);
-                    const uint64_t my_n_end = min(my_n_idx_end * NR, nn);
-                    const uint64_t my_n_size = my_n_end - my_n_start;
-
-                    const double *A_start = A + my_m_start;
-                    const double *B_start = B + my_n_start * ldb;
-                    double *C_start = C + my_m_start * 1 + my_n_start * ldc;
-
-                    static double *_A[TOTAL_CORE] = {
-                        NULL,
-                    };
-                    static double *_B[TOTAL_CORE] = {
-                        NULL,
-                    };
-
-                    if (_A[pid] == NULL)
-                    {
-                        _A[pid] = numa_alloc(sizeof(double) * (MB + MR) * KB);
-                        _B[pid] = numa_alloc(sizeof(double) * KB * (NB + NR));
-                    }
-
-                    tinfo[pid].m = my_m_size;
-                    tinfo[pid].n = my_n_size;
-                    tinfo[pid].k = kk;
-                    tinfo[pid].A = A_start;
-                    tinfo[pid].lda = lda;
-                    tinfo[pid].B = B_start;
-                    tinfo[pid].ldb = ldb;
-                    tinfo[pid].C = C_start;
-                    tinfo[pid].ldc = ldc;
-                    tinfo[pid]._A = _A[pid];
-                    tinfo[pid]._B = _B[pid];
-
-                    CPU_ZERO(&mask);
-                    CPU_SET(pid, &mask);
-
-                    pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &mask);
-                    pthread_create(&tinfo[pid].thread_id, &attr, &middle_kernel, &tinfo[pid]);
-                }
-
-                for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
-                {
-                    void *res;
-                    pthread_join(tinfo[pid].thread_id, &res);
-                }
-
-                pthread_attr_destroy(&attr);
+                inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
             }
         }
     }
+
+    numa_free(_A, sizeof(double) * (MB + MR) * KB);
+    numa_free(_B, sizeof(double) * KB * NB);
 }
