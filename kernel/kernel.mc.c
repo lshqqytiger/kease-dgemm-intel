@@ -757,7 +757,7 @@ void packacc(
     }
 }
 
-void transpose(double *dst, const double *src, int ld)
+inline void transpose(double *dst, const double *src, int ld)
 {
     __m512d r00, r01, r02, r03, r04, r05, r06, r07, r08, r09, r0a, r0b, r0c, r0d, r0e, r0f;
 

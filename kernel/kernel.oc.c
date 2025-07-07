@@ -35,7 +35,17 @@
 #define KB 64 // 64
 #endif
 
-#define LCAM
+#ifndef MK_UNROLL_DEPTH
+#define MK_UNROLL_DEPTH 2
+#endif
+
+#ifndef MK_PREFETCH_A_DEPTH
+#define MK_PREFETCH_A_DEPTH 4
+#endif
+
+#ifndef MK_PREFETCH_C_DEPTH
+#define MK_PREFETCH_C_DEPTH 6
+#endif
 
 void micro_kernel_8x24_ppc_anbp(
     uint64_t kk,
@@ -49,45 +59,6 @@ void micro_kernel_8x24_ppc_anbp(
 
     asm volatile(
         " vmovapd (%[A]), %%zmm31         \t\n"
-#ifndef LCAM
-        " vmovupd (%[C]),  %%zmm0  \t\n"
-        " vmovupd (%[C], %[ldc],1),  %%zmm1  \t\n"
-        " vmovupd (%[C], %[ldc],2),  %%zmm2  \t\n"
-        " vmovupd (%[C], %[ldc3],1),  %%zmm3  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd (%[C]),  %%zmm4  \t\n"
-        " vmovupd (%[C], %[ldc],1),  %%zmm5  \t\n"
-        " vmovupd (%[C], %[ldc],2),  %%zmm6  \t\n"
-        " vmovupd (%[C], %[ldc3],1),  %%zmm7  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd (%[C]),  %%zmm8  \t\n"
-        " vmovupd (%[C], %[ldc],1),  %%zmm9  \t\n"
-        " vmovupd (%[C], %[ldc],2), %%zmm10  \t\n"
-        " vmovupd (%[C], %[ldc3],1), %%zmm11  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd (%[C]), %%zmm12  \t\n"
-        " vmovupd (%[C], %[ldc],1), %%zmm13  \t\n"
-        " vmovupd (%[C], %[ldc],2), %%zmm14  \t\n"
-        " vmovupd (%[C], %[ldc3],1), %%zmm15  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd (%[C]), %%zmm16  \t\n"
-        " vmovupd (%[C], %[ldc],1), %%zmm17  \t\n"
-        " vmovupd (%[C], %[ldc],2), %%zmm18  \t\n"
-        " vmovupd (%[C], %[ldc3],1), %%zmm19  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd (%[C]), %%zmm20  \t\n"
-        " vmovupd (%[C], %[ldc],1), %%zmm21  \t\n"
-        " vmovupd (%[C], %[ldc],2), %%zmm22  \t\n"
-        " vmovupd (%[C], %[ldc3],1), %%zmm23  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd (%[C]), %%zmm24  \t\n"
-        " vmovupd (%[C], %[ldc],1), %%zmm25  \t\n"
-        " vmovupd (%[C], %[ldc],2), %%zmm26  \t\n"
-        " vmovupd (%[C], %[ldc3],1), %%zmm27  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd (%[C]), %%zmm28  \t\n"
-        " vmovupd (%[C], %[ldc],1), %%zmm29  \t\n"
-#else
         " vpxord  %%zmm0,  %%zmm0, %%zmm0 \t\n"
         " vmovapd %%zmm0,  %%zmm1         \t\n"
         " vmovapd %%zmm0,  %%zmm2         \t\n"
@@ -113,30 +84,41 @@ void micro_kernel_8x24_ppc_anbp(
         " vmovapd %%zmm0, %%zmm22         \t\n"
         " vmovapd %%zmm0, %%zmm23         \t\n"
 
+#if MK_PREFETCH_C_DEPTH > 0
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 1
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 2
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 3
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 4
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 5
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
@@ -150,8 +132,8 @@ void micro_kernel_8x24_ppc_anbp(
           "zmm20", "zmm21", "zmm22", "zmm23", "zmm31");
 
     kk >>= 1;
-#pragma unroll(3)
-    for (uint64_t i = 0; LIKELY(i < kk); ++i)
+#pragma unroll(MK_UNROLL_DEPTH)
+    for (uint64_t i = 0; i < kk; ++i)
     {
         asm volatile(
             " prefetcht0   0x480(%[A])                          \t\n"
@@ -218,49 +200,18 @@ void micro_kernel_8x24_ppc_anbp(
     }
 
     asm volatile(
-#ifndef LCAM
-        " vmovupd  %%zmm0, (%[C])  \t\n"
-        " vmovupd  %%zmm1, (%[C], %[ldc],1)  \t\n"
-        " vmovupd  %%zmm2, (%[C], %[ldc],2)  \t\n"
-        " vmovupd  %%zmm3, (%[C], %[ldc3],1)  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd  %%zmm4, (%[C])  \t\n"
-        " vmovupd  %%zmm5, (%[C], %[ldc],1)  \t\n"
-        " vmovupd  %%zmm6, (%[C], %[ldc],2)  \t\n"
-        " vmovupd  %%zmm7, (%[C], %[ldc3],1)  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd  %%zmm8, (%[C])  \t\n"
-        " vmovupd  %%zmm9, (%[C], %[ldc],1)  \t\n"
-        " vmovupd %%zmm10, (%[C], %[ldc],2)  \t\n"
-        " vmovupd %%zmm11, (%[C], %[ldc3],1)  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd %%zmm12, (%[C])  \t\n"
-        " vmovupd %%zmm13, (%[C], %[ldc],1)  \t\n"
-        " vmovupd %%zmm14, (%[C], %[ldc],2)  \t\n"
-        " vmovupd %%zmm15, (%[C], %[ldc3],1)  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd %%zmm16, (%[C])  \t\n"
-        " vmovupd %%zmm17, (%[C], %[ldc],1)  \t\n"
-        " vmovupd %%zmm18, (%[C], %[ldc],2)  \t\n"
-        " vmovupd %%zmm19, (%[C], %[ldc3],1)  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd %%zmm20, (%[C])  \t\n"
-        " vmovupd %%zmm21, (%[C], %[ldc],1)  \t\n"
-        " vmovupd %%zmm22, (%[C], %[ldc],2)  \t\n"
-        " vmovupd %%zmm23, (%[C], %[ldc3],1)  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd %%zmm24, (%[C])  \t\n"
-        " vmovupd %%zmm25, (%[C], %[ldc],1)  \t\n"
-        " vmovupd %%zmm26, (%[C], %[ldc],2)  \t\n"
-        " vmovupd %%zmm27, (%[C], %[ldc3],1)  \t\n"
-        " lea (%[C], %[ldc],4), %[C] \t\n"
-        " vmovupd %%zmm28, (%[C])  \t\n"
-        " vmovupd %%zmm29, (%[C], %[ldc],1)  \t\n"
-#else
+#if MK_PREFETCH_A_DEPTH > 0
         " prefetcht0     (%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_A_DEPTH > 1
         " prefetcht0 0x40(%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_A_DEPTH > 2
         " prefetcht0 0x80(%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_A_DEPTH > 3
         " prefetcht0 0xc0(%[A_next])                 \t\n"
+#endif
 
         " vaddpd  (%[C]),            %%zmm0,  %%zmm0 \t\n"
         " vaddpd  (%[C], %[ldc],1),  %%zmm1,  %%zmm1 \t\n"
@@ -320,7 +271,6 @@ void micro_kernel_8x24_ppc_anbp(
         " vmovupd %%zmm21, (%[C], %[ldc],1)          \t\n"
         " vmovupd %%zmm22, (%[C], %[ldc],2)          \t\n"
         " vmovupd %%zmm23, (%[C],%[ldc3],1)          \t\n"
-#endif
         : [C] "+r"(C)
         : [ldc] "r"(ldc * 8), [ldc3] "r"(ldc * 8 * 3), [A_next] "r"(_A_next)
         : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
@@ -622,7 +572,7 @@ void packacc(
     }
 }
 
-void transpose(double *dst, const double *src, int ld)
+inline void transpose(double *dst, const double *src, int ld)
 {
     __m512d r00, r01, r02, r03, r04, r05, r06, r07, r08, r09, r0a, r0b, r0c, r0d, r0e, r0f;
 
@@ -803,13 +753,13 @@ void call_dgemm(
 
         for (uint64_t ki = 0; ki < kc; ++ki)
         {
-            const uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
+            const register uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
 
             packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
 
             for (uint64_t ni = 0; ni < nc; ++ni)
             {
-                const uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
+                const register uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
 
                 packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
 
