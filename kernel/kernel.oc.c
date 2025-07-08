@@ -40,7 +40,7 @@
 #endif
 
 #ifndef MK_PREFETCH_A_DEPTH
-#define MK_PREFETCH_A_DEPTH 4
+#define MK_PREFETCH_A_DEPTH 0
 #endif
 
 #ifndef MK_PREFETCH_C_DEPTH
@@ -453,7 +453,7 @@ void packacc(
         A_k_next += lda * CACHE_ELEM;
 
 #pragma unroll(2)
-        for(uint8_t i = 0; i < 2; ++i)
+        for (uint8_t i = 0; i < 2; ++i)
         {
             asm volatile(
                 " prefetchnta     (%[A])            \t\n"
