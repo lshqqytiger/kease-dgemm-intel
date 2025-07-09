@@ -39,14 +39,6 @@
 #define MK_UNROLL_DEPTH 2
 #endif
 
-#ifndef MK_PREFETCH_A_DEPTH
-#define MK_PREFETCH_A_DEPTH 0
-#endif
-
-#ifndef MK_PREFETCH_C_DEPTH
-#define MK_PREFETCH_C_DEPTH 6
-#endif
-
 void micro_kernel_8x24_ppc_anbp(
     uint64_t kk,
     const double *restrict _A,
@@ -84,47 +76,35 @@ void micro_kernel_8x24_ppc_anbp(
         " vmovapd %%zmm0, %%zmm22         \t\n"
         " vmovapd %%zmm0, %%zmm23         \t\n"
 
-#if MK_PREFETCH_C_DEPTH > 0
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-#endif
-#if MK_PREFETCH_C_DEPTH > 1
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-#endif
-#if MK_PREFETCH_C_DEPTH > 2
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-#endif
-#if MK_PREFETCH_C_DEPTH > 3
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-#endif
-#if MK_PREFETCH_C_DEPTH > 4
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-#endif
-#if MK_PREFETCH_C_DEPTH > 5
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-#endif
         : [C] "+r"(tmp_C)
         : [ldc] "r"(ldc * 8), [ldc3] "r"(ldc * 8 * 3), [A] "r"(_A)
         : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
@@ -200,18 +180,10 @@ void micro_kernel_8x24_ppc_anbp(
     }
 
     asm volatile(
-#if MK_PREFETCH_A_DEPTH > 0
-        " prefetcht0     (%[A_next])                 \t\n"
-#endif
-#if MK_PREFETCH_A_DEPTH > 1
-        " prefetcht0 0x40(%[A_next])                 \t\n"
-#endif
-#if MK_PREFETCH_A_DEPTH > 2
-        " prefetcht0 0x80(%[A_next])                 \t\n"
-#endif
-#if MK_PREFETCH_A_DEPTH > 3
-        " prefetcht0 0xc0(%[A_next])                 \t\n"
-#endif
+        // " prefetcht0     (%[A_next])                 \t\n"
+        // " prefetcht0 0x40(%[A_next])                 \t\n"
+        // " prefetcht0 0x80(%[A_next])                 \t\n"
+        // " prefetcht0 0xc0(%[A_next])                 \t\n"
 
         " vaddpd  (%[C]),            %%zmm0,  %%zmm0 \t\n"
         " vaddpd  (%[C], %[ldc],1),  %%zmm1,  %%zmm1 \t\n"
