@@ -1,5 +1,5 @@
 /**
- * @file knl/kernel.mc.c
+ * @file skl/kernel.mc.c
  * @author Enoch Jung
  * @brief dgemm for
  *        - core : 1 core
@@ -22,7 +22,6 @@
 
 #include "cblas_format.h"
 #include "common.h"
-#include "mcdram.h"
 
 #define CACHE_LINE 64
 #define CACHE_ELEM (CACHE_LINE / 8)
@@ -62,8 +61,8 @@
 #define KA (KB * 1000)
 #endif
 
-#define MK_PREFETCH_A0
-#define MK_PREFETCH_A1
+// #define MK_PREFETCH_A0
+// #define MK_PREFETCH_A1
 
 #ifndef MK_PREFETCH_NEXT_A_DEPTH
 #define MK_PREFETCH_NEXT_A_DEPTH 0
@@ -631,6 +630,7 @@ void packbcr(
     }
 }
 
+// TODO: NUMA-aware
 struct thread_info
 {
     pthread_t thread_id;

@@ -1,5 +1,5 @@
 /**
- * @file kernel.01.oc.c
+ * @file knl/kernel.oc.c
  * @author Enoch Jung
  * @brief dgemm for
  *        - core : 1 core
@@ -18,6 +18,7 @@
 
 #include "cblas_format.h"
 #include "common.h"
+#include "mcdram.h"
 
 #define CACHE_LINE 64
 #define CACHE_ELEM (CACHE_LINE / 8)
@@ -35,8 +36,23 @@
 #define KB 64 // 64
 #endif
 
+#define MK_PREFETCH_A0
+#define MK_PREFETCH_A1
+
+#ifndef MK_PREFETCH_NEXT_A_DEPTH
+#define MK_PREFETCH_NEXT_A_DEPTH 0
+#endif
+
+#ifndef MK_PREFETCH_C_DEPTH
+#define MK_PREFETCH_C_DEPTH 6
+#endif
+
 #ifndef MK_UNROLL_DEPTH
 #define MK_UNROLL_DEPTH 2
+#endif
+
+#ifndef ACC_PREFETCH_DEPTH
+#define ACC_PREFETCH_DEPTH 2
 #endif
 
 void micro_kernel_8x24_ppc_anbp(
@@ -76,35 +92,96 @@ void micro_kernel_8x24_ppc_anbp(
         " vmovapd %%zmm0, %%zmm22         \t\n"
         " vmovapd %%zmm0, %%zmm23         \t\n"
 
+#if MK_PREFETCH_C_DEPTH > 0
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 1
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 2
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 3
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 4
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 5
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 6
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+        " prefetcht0 (%[C], %[ldc],2)       \t\n"
+        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 7
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+        " prefetcht0 (%[C], %[ldc],2)       \t\n"
+        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 8
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+        " prefetcht0 (%[C], %[ldc],2)       \t\n"
+        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 9
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+        " prefetcht0 (%[C], %[ldc],2)       \t\n"
+        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 10
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+        " prefetcht0 (%[C], %[ldc],2)       \t\n"
+        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 11
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+        " prefetcht0 (%[C], %[ldc],2)       \t\n"
+        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
+#if MK_PREFETCH_C_DEPTH > 12
+        " lea        (%[C], %[ldc],4), %[C] \t\n"
+        " prefetcht0 (%[C])                 \t\n"
+        " prefetcht0 (%[C], %[ldc],1)       \t\n"
+        " prefetcht0 (%[C], %[ldc],2)       \t\n"
+        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
+#endif
         : [C] "+r"(tmp_C)
         : [ldc] "r"(ldc * 8), [ldc3] "r"(ldc * 8 * 3), [A] "r"(_A)
         : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
@@ -116,7 +193,9 @@ void micro_kernel_8x24_ppc_anbp(
     for (uint64_t i = 0; i < kk; ++i)
     {
         asm volatile(
+#ifdef MK_PREFETCH_A0
             " prefetcht0   0x480(%[A])                          \t\n"
+#endif
             " vmovapd       0x40(%[A]),        %%zmm30          \t\n"
             " vfnmadd231pd      (%[B])%{1to8}, %%zmm31,  %%zmm0 \t\n"
             " vfnmadd231pd   0x8(%[B])%{1to8}, %%zmm31,  %%zmm1 \t\n"
@@ -143,7 +222,9 @@ void micro_kernel_8x24_ppc_anbp(
             " vfnmadd231pd  0xb0(%[B])%{1to8}, %%zmm31, %%zmm22 \t\n"
             " vfnmadd231pd  0xb8(%[B])%{1to8}, %%zmm31, %%zmm23 \t\n"
 
+#ifdef MK_PREFETCH_A1
             " prefetcht0   0x4c0(%[A])                          \t\n"
+#endif
             " vmovapd       0x80(%[A]),        %%zmm31          \t\n"
             " vfnmadd231pd  0xc0(%[B])%{1to8}, %%zmm30,  %%zmm0 \t\n"
             " vfnmadd231pd  0xc8(%[B])%{1to8}, %%zmm30,  %%zmm1 \t\n"
@@ -180,10 +261,30 @@ void micro_kernel_8x24_ppc_anbp(
     }
 
     asm volatile(
-        // " prefetcht0     (%[A_next])                 \t\n"
-        // " prefetcht0 0x40(%[A_next])                 \t\n"
-        // " prefetcht0 0x80(%[A_next])                 \t\n"
-        // " prefetcht0 0xc0(%[A_next])                 \t\n"
+#if MK_PREFETCH_NEXT_A_DEPTH > 0
+        " prefetcht0     (%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_NEXT_A_DEPTH > 1
+        " prefetcht0 0x40(%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_NEXT_A_DEPTH > 2
+        " prefetcht0 0x80(%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_NEXT_A_DEPTH > 3
+        " prefetcht0 0xc0(%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_NEXT_A_DEPTH > 4
+        " prefetcht0 0x100(%[A_next])                \t\n"
+#endif
+#if MK_PREFETCH_NEXT_A_DEPTH > 5
+        " prefetcht0 0x140(%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_NEXT_A_DEPTH > 6
+        " prefetcht0 0x180(%[A_next])                 \t\n"
+#endif
+#if MK_PREFETCH_NEXT_A_DEPTH > 7
+        " prefetcht0 0x1c0(%[A_next])                 \t\n"
+#endif
 
         " vaddpd  (%[C]),            %%zmm0,  %%zmm0 \t\n"
         " vaddpd  (%[C], %[ldc],1),  %%zmm1,  %%zmm1 \t\n"
@@ -424,8 +525,8 @@ void packacc(
         A_now = A_k_next;
         A_k_next += lda * CACHE_ELEM;
 
-#pragma unroll(2)
-        for (uint8_t i = 0; i < 2; ++i)
+#pragma unroll(ACC_PREFETCH_DEPTH)
+        for (uint8_t i = 0; i < ACC_PREFETCH_DEPTH; ++i)
         {
             asm volatile(
                 " prefetchnta     (%[A])            \t\n"

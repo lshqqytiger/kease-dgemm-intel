@@ -7,9 +7,24 @@
 
 #define ROUND_UP(a, b) ((a + b - 1) / b)
 
-#ifndef NUMA_NODE_MCDRAM
-#define NUMA_NODE_MCDRAM 1
-#endif
-#define numa_alloc(size) numa_alloc_onnode(size, NUMA_NODE_MCDRAM)
-
 #define __forceinline __attribute__((always_inline)) inline
+
+void set_data(double *matrix, uint64_t size, uint64_t seed, double min_value,
+              double max_value)
+{
+#pragma omp parallel
+  {
+    uint64_t tid = omp_get_thread_num();
+    uint64_t value = (tid * 1034871 + 10581) * seed;
+    uint64_t mul = 192499;
+    uint64_t add = 6837199;
+    for (uint64_t i = 0; i < 50 + tid; ++i)
+      value = value * mul + add;
+#pragma omp for
+    for (uint64_t i = 0; i < size; ++i)
+    {
+      value = value * mul + add;
+      matrix[i] = (double)value / (double)(uint64_t)(-1) * (max_value - min_value) + min_value;
+    }
+  }
+}
