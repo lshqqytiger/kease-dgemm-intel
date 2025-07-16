@@ -3,11 +3,10 @@
 #include <mkl.h>
 #include <string.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <numa.h>
 #include <omp.h>
 
-#include <cblas_format.h>
+#include "cblas_format.h"
 
 void set_data(double *matrix, uint64_t size, uint64_t seed, double min_value,
               double max_value)

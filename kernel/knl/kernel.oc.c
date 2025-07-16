@@ -174,13 +174,6 @@ void micro_kernel_8x24_ppc_anbp(
         " prefetcht0 (%[C], %[ldc],2)       \t\n"
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
 #endif
-#if MK_PREFETCH_C_DEPTH > 12
-        " lea        (%[C], %[ldc],4), %[C] \t\n"
-        " prefetcht0 (%[C])                 \t\n"
-        " prefetcht0 (%[C], %[ldc],1)       \t\n"
-        " prefetcht0 (%[C], %[ldc],2)       \t\n"
-        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-#endif
         : [C] "+r"(tmp_C)
         : [ldc] "r"(ldc * 8), [ldc3] "r"(ldc * 8 * 3), [A] "r"(_A)
         : "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9",
