@@ -13,6 +13,7 @@
  */
 
 #include <assert.h>
+#include <numa.h>
 #include <immintrin.h>
 
 #include "cblas_format.h"
