@@ -1,14 +1,9 @@
-#include <mkl.h>
-#include <omp.h>
-#include <string.h>
-#include <stdbool.h>
+#include "helper.h"
+#include "mcdram.h"
 
-#include "cblas_format.h"
-#include "common.h"
-
-#define M 600
-#define N 600
-#define K 600
+#define M 6000
+#define N 6000
+#define K 6000
 
 #define lda M
 #define ldb K

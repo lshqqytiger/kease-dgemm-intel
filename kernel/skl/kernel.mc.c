@@ -1,5 +1,5 @@
 /**
- * @file knl/kernel.oc.c
+ * @file skl/kernel.mc.c
  * @author Enoch Jung
  * @brief dgemm for
  *        - core : 1 core
@@ -9,35 +9,59 @@
  *        - k     : even number
  *        - alpha : -1.0
  *        - beta  : +1.0
- * @date 2023-10-24
+ * @date 2024-04-17
  */
 
+#define _GNU_SOURCE
+
+#include <pthread.h>
+#include <sched.h>
 #include <assert.h>
-#include <stdint.h>
 #include <immintrin.h>
 
 #include "cblas_format.h"
 #include "common.h"
-#include "mcdram.h"
 
 #define CACHE_LINE 64
 #define CACHE_ELEM (CACHE_LINE / 8)
+
+#define TOTAL_CORE 68
+#define NT1 17
+#define NT2 (TOTAL_CORE / NT1)
+
+#ifndef CM
+#define CM 17
+#endif
+
+#define CN (TOTAL_CORE / CM)
 
 #define MR 8
 #define NR 24
 
 #ifndef MB
-#define MB 600
-#endif
-#ifndef NB
-#define NB (NR * 1) // [ 50] => [1, 2, 5, 10, 25, 50]
-#endif
-#ifndef KB
-#define KB 64 // 64
+#define MB (MR * 48)
 #endif
 
-#define MK_PREFETCH_A0
-#define MK_PREFETCH_A1
+#ifndef NB
+#define NB (NR * 1)
+#endif
+
+#ifndef KB
+#define KB 64
+#endif
+
+#ifndef MA
+#define MA (MB * 1000)
+#endif
+#ifndef NA
+#define NA (NB * 1000)
+#endif
+#ifndef KA
+#define KA (KB * 1000)
+#endif
+
+// #define MK_PREFETCH_A0
+// #define MK_PREFETCH_A1
 
 #ifndef MK_PREFETCH_NEXT_A_DEPTH
 #define MK_PREFETCH_NEXT_A_DEPTH 0
@@ -55,13 +79,7 @@
 #define ACC_PREFETCH_DEPTH 2
 #endif
 
-void micro_kernel_8x24_ppc_anbp(
-    uint64_t kk,
-    const double *restrict _A,
-    const double *restrict _B,
-    double *restrict C,
-    uint64_t ldc,
-    const double *restrict _A_next)
+void micro_kernel_8x24_ppc_anbp(uint64_t kk, const double *restrict _A, const double *restrict _B, double *restrict C, uint64_t ldc, const double *restrict _A_next)
 {
     register double *tmp_C = C;
 
@@ -169,13 +187,6 @@ void micro_kernel_8x24_ppc_anbp(
         " prefetcht0 (%[C],%[ldc3],1)       \t\n"
 #endif
 #if MK_PREFETCH_C_DEPTH > 11
-        " lea        (%[C], %[ldc],4), %[C] \t\n"
-        " prefetcht0 (%[C])                 \t\n"
-        " prefetcht0 (%[C], %[ldc],1)       \t\n"
-        " prefetcht0 (%[C], %[ldc],2)       \t\n"
-        " prefetcht0 (%[C],%[ldc3],1)       \t\n"
-#endif
-#if MK_PREFETCH_C_DEPTH > 12
         " lea        (%[C], %[ldc],4), %[C] \t\n"
         " prefetcht0 (%[C])                 \t\n"
         " prefetcht0 (%[C], %[ldc],1)       \t\n"
@@ -375,13 +386,8 @@ void inner_kernel_ppc_anbp(
     uint64_t mm,
     uint64_t nn,
     uint64_t kk,
-#ifdef INNER_MN
-    const double *restrict A,
-    const double *restrict _B,
-#else
     const double *restrict _A,
-    const double *restrict B,
-#endif
+    const double *restrict _B,
     double *restrict C,
     uint64_t ldc)
 {
@@ -391,55 +397,56 @@ void inner_kernel_ppc_anbp(
     const uint64_t nnr = nn % NR;
 
 #ifdef INNER_MN
-    const double *B;
-
     for (uint64_t mmi = 0; mmi < mmc; ++mmi)
     {
         const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 
-        B = _B;
+        const double *A_now = _A + mmi * MR * kk;
+        const double *A_next = mmi != mmc - 1 ? A_now + MR * kk : _A;
+
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
             const register uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
+
+            const double *B_now = _B + nni * NR * kk;
+            const double *B_next = nni != nnc - 1 ? B_now + NR * kk : _B;
 #else
-    const double *A;
+    const double *A_now;
+    const double *B_now;
+    const double *A_next;
+    const double *B_next;
+
+    A_next = _A;
+    B_next = _B;
 
     for (uint64_t nni = 0; nni < nnc; ++nni)
     {
         const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
 
-        A = _A;
+        B_now = B_next;
+        B_next = nni != nnc - 1 ? B_next + NR * kk : _B;
+
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
             const register uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
+
+            A_now = A_next;
+            A_next = mmi != mmc - 1 ? A_next + MR * kk : _A;
 #endif
 
             if (LIKELY(mmm == MR && nnn == NR))
             {
-                micro_kernel_8x24_ppc_anbp(kk, A, B, C + mmi * MR + nni * NR * ldc, ldc, A + MR * kk);
+                micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, C + mmi * MR + nni * NR * ldc, ldc, A_next);
             }
             else
             {
                 double _C[MR * NR] __attribute__((aligned(CACHE_LINE))) = {};
-                micro_kernel_8x24_ppc_anbp(kk, A, B, _C, MR, A + MR * kk);
+                micro_kernel_8x24_ppc_anbp(kk, A_now, B_now, _C, MR, A_next);
                 micro_dxpy_cc(mmm, nnn, C + mmi * MR + nni * NR * ldc, ldc, _C);
             }
-
-#ifdef INNER_MN
-            B += NR * kk;
         }
-
-        A += MR * kk;
-#else
-            A += MR * kk;
-        }
-
-        B += NR * kk;
-#endif
     }
 }
-
-// #define PACKACC_M_FIRST
 
 void packacc(
     uint64_t mm,
@@ -448,73 +455,11 @@ void packacc(
     uint64_t lda,
     double *restrict _A)
 {
-    const uint64_t mmc = ROUND_UP(mm, MR);
-    const uint64_t mmr = mm % MR;
-    const uint64_t kkc = ROUND_UP(kk, CACHE_ELEM);
-    const uint64_t kkr = kk % CACHE_ELEM;
+    uint64_t mmc = (mm + MR - 1) / MR;
+    uint64_t mmr = mm % MR;
+    uint64_t kkc = (kk + CACHE_ELEM - 1) / CACHE_ELEM;
+    uint64_t kkr = kk % CACHE_ELEM;
 
-#ifdef PACKACC_M_FIRST
-    const double *A_now = A;
-    const double *A_m_next = A;
-    for (uint64_t mmi = 0; mmi < mmc; ++mmi)
-    {
-        const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
-
-        A_now = A_m_next;
-        A_m_next += MR;
-
-        /*
-                register const double* tmp_A = A_m_next;
-
-                asm volatile(
-                " prefetcht0 (%[A])                 \t\n"
-                " prefetcht0 (%[A], %[lda],1)       \t\n"
-                " prefetcht0 (%[A], %[lda],2)       \t\n"
-                " prefetcht0 (%[A],%[lda3],1)       \t\n"
-                " lea        (%[A], %[lda],4), %[A] \t\n"
-                " prefetcht0 (%[A])                 \t\n"
-                " prefetcht0 (%[A], %[lda],1)       \t\n"
-                " prefetcht0 (%[A], %[lda],2)       \t\n"
-                " prefetcht0 (%[A],%[lda3],1)       \t\n"
-                " lea        (%[A], %[lda],4), %[A] \t\n"
-                " prefetcht0 (%[A])                 \t\n"
-                " prefetcht0 (%[A], %[lda],1)       \t\n"
-                " prefetcht0 (%[A], %[lda],2)       \t\n"
-                " prefetcht0 (%[A],%[lda3],1)       \t\n"
-                " lea        (%[A], %[lda],4), %[A] \t\n"
-                " prefetcht0 (%[A])                 \t\n"
-                " prefetcht0 (%[A], %[lda],1)       \t\n"
-                " prefetcht0 (%[A], %[lda],2)       \t\n"
-                " prefetcht0 (%[A],%[lda3],1)       \t\n"
-                " lea        (%[A], %[lda],4), %[A] \t\n"
-                " prefetcht0 (%[A])                 \t\n"
-                " prefetcht0 (%[A], %[lda],1)       \t\n"
-                " prefetcht0 (%[A], %[lda],2)       \t\n"
-                " prefetcht0 (%[A],%[lda3],1)       \t\n"
-                " lea        (%[A], %[lda],4), %[A] \t\n"
-                " prefetcht0 (%[A])                 \t\n"
-                " prefetcht0 (%[A], %[lda],1)       \t\n"
-                " prefetcht0 (%[A], %[lda],2)       \t\n"
-                " prefetcht0 (%[A],%[lda3],1)       \t\n"
-                " lea        (%[A], %[lda],4), %[A] \t\n"
-                " prefetcht0 (%[A])                 \t\n"
-                " prefetcht0 (%[A], %[lda],1)       \t\n"
-                " prefetcht0 (%[A], %[lda],2)       \t\n"
-                " prefetcht0 (%[A],%[lda3],1)       \t\n"
-                " lea        (%[A], %[lda],4), %[A] \t\n"
-                " prefetcht0 (%[A])                 \t\n"
-                " prefetcht0 (%[A], %[lda],1)       \t\n"
-                " prefetcht0 (%[A], %[lda],2)       \t\n"
-                " prefetcht0 (%[A],%[lda3],1)       \t\n"
-                : [A]"+r"(tmp_A)
-                : [lda]"r"(lda*8), [lda3]"r"(lda*8*3)
-                );
-                */
-
-        for (uint64_t kki = 0; kki < kkc; ++kki)
-        {
-            const register uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
-#else
     const double *A_now = A;
     const double *A_k_next = A;
 
@@ -549,50 +494,9 @@ void packacc(
                 : [A] "r"(A_k_next + lda * 4 * i), [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
         }
 
-        /*
-                register const double* _A_k_next = _A + kki * MR * CACHE_ELEM;
-                asm volatile(
-                " prefetcht0      (%[A0])            \t\n"
-                " prefetcht0  0x40(%[A0])            \t\n"
-                " prefetcht0  0x80(%[A0])            \t\n"
-                " prefetcht0  0xc0(%[A0])            \t\n"
-                " prefetcht0 0x100(%[A0])            \t\n"
-                " prefetcht0 0x140(%[A0])            \t\n"
-                " prefetcht0 0x180(%[A0])            \t\n"
-                " prefetcht0 0x1c0(%[A0])            \t\n"
-                " prefetcht0      (%[A1])            \t\n"
-                " prefetcht0  0x40(%[A1])            \t\n"
-                " prefetcht0  0x80(%[A1])            \t\n"
-                " prefetcht0  0xc0(%[A1])            \t\n"
-                " prefetcht0 0x100(%[A1])            \t\n"
-                " prefetcht0 0x140(%[A1])            \t\n"
-                " prefetcht0 0x180(%[A1])            \t\n"
-                " prefetcht0 0x1c0(%[A1])            \t\n"
-                " prefetcht0      (%[A2])            \t\n"
-                " prefetcht0  0x40(%[A2])            \t\n"
-                " prefetcht0  0x80(%[A2])            \t\n"
-                " prefetcht0  0xc0(%[A2])            \t\n"
-                " prefetcht0 0x100(%[A2])            \t\n"
-                " prefetcht0 0x140(%[A2])            \t\n"
-                " prefetcht0 0x180(%[A2])            \t\n"
-                " prefetcht0 0x1c0(%[A2])            \t\n"
-                " prefetcht0      (%[A3])            \t\n"
-                " prefetcht0  0x40(%[A3])            \t\n"
-                " prefetcht0  0x80(%[A3])            \t\n"
-                " prefetcht0  0xc0(%[A3])            \t\n"
-                " prefetcht0 0x100(%[A3])            \t\n"
-                " prefetcht0 0x140(%[A3])            \t\n"
-                " prefetcht0 0x180(%[A3])            \t\n"
-                " prefetcht0 0x1c0(%[A3])            \t\n"
-                :
-                : [A0]"r"(_A_k_next), [A1]"r"(_A_k_next+MR*kk), [A2]"r"(_A_k_next+MR*kk*2), [A3]"r"(_A_k_next+MR*kk*3)
-                );
-                */
-
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
             const register uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
-#endif
 
             register double *_A_now = _A + mmi * MR * kk + kki * MR * CACHE_ELEM;
 
@@ -631,16 +535,12 @@ void packacc(
                 {
                     for (uint64_t mmmi = 0; mmmi < mmm; ++mmmi)
                     {
-                        _A_now[mmmi + kkki * MR] = A_now[mmmi + kkki * lda];
+                        _A_now[mmmi + MR * kkki] = A_now[mmmi + lda * kkki];
                     }
                 }
             }
 
-#ifdef PACKACC_M_FIRST
-            A_now += CACHE_ELEM * lda;
-#else
             A_now += MR;
-#endif
         }
     }
 }
@@ -686,8 +586,6 @@ inline void transpose(double *dst, const double *src, int ld)
     _mm512_store_pd(dst + 7 * NR, r07);
 }
 
-// #define ORIGIN_PACKBCR
-
 void packbcr(
     uint64_t kk,
     uint64_t nn,
@@ -697,56 +595,11 @@ void packbcr(
 {
     const uint64_t nnc = ROUND_UP(nn, NR);
     const uint64_t nnr = nn % NR;
-
-#ifdef ORIGIN_PACKBCR
-    for (uint64_t nni = 0; nni < nnc; ++nni)
-    {
-        const uint64_t nnn = (nni != nnc - 1 || nnr == 0) ? NR : nnr;
-        for (uint64_t i = 0; i < nnn; ++i)
-        {
-            for (uint64_t j = 0; j < kk; ++j)
-            {
-                _B[nni * NR * kk + i + j * NR] = B[nni * NR * ldb + i * ldb + j];
-            }
-        }
-    }
-#else
     const uint64_t kkc = ROUND_UP(kk, 8);
     const uint64_t kkr = kk % 8;
     for (uint64_t j = 0; j < kkc; ++j)
     {
         const uint64_t kkk = (j != kkc - 1 || kkr == 0) ? 8 : kkr;
-        /*
-        const double* B_k_next = B + (j + 6) * 8;
-        asm volatile(
-        " prefetchnta (%[B0])            \t\n"
-        " prefetchnta (%[B0], %[ldb],1)  \t\n"
-        " prefetchnta (%[B0], %[ldb],2)  \t\n"
-        " prefetchnta (%[B0],%[ldb3],1)  \t\n"
-        " prefetchnta (%[B4])            \t\n"
-        " prefetchnta (%[B4], %[ldb],1)  \t\n"
-        " prefetchnta (%[B4], %[ldb],2)  \t\n"
-        " prefetchnta (%[B4],%[ldb3],1)  \t\n"
-        " prefetchnta (%[B8])            \t\n"
-        " prefetchnta (%[B8], %[ldb],1)  \t\n"
-        " prefetchnta (%[B8], %[ldb],2)  \t\n"
-        " prefetchnta (%[B8],%[ldb3],1)  \t\n"
-        " prefetchnta (%[B12])            \t\n"
-        " prefetchnta (%[B12], %[ldb],1)  \t\n"
-        " prefetchnta (%[B12], %[ldb],2)  \t\n"
-        " prefetchnta (%[B12],%[ldb3],1)  \t\n"
-        " prefetchnta (%[B16])            \t\n"
-        " prefetchnta (%[B16], %[ldb],1)  \t\n"
-        " prefetchnta (%[B16], %[ldb],2)  \t\n"
-        " prefetchnta (%[B16],%[ldb3],1)  \t\n"
-        " prefetchnta (%[B20])            \t\n"
-        " prefetchnta (%[B20], %[ldb],1)  \t\n"
-        " prefetchnta (%[B20], %[ldb],2)  \t\n"
-        " prefetchnta (%[B20],%[ldb3],1)  \t\n"
-        :
-        : [B0]"r"(B_k_next), [B4]"r"(B_k_next+ldb*4), [B8]"r"(B_k_next+ldb*8), [B12]"r"(B_k_next+ldb*12), [B16]"r"(B_k_next+ldb*16), [B20]"r"(B_k_next+ldb*20), [ldb]"r"(ldb), [ldb3]"r"(ldb*3)
-        );
-        */
 
         for (uint64_t nni = 0; nni < nnc; ++nni)
         {
@@ -774,7 +627,88 @@ void packbcr(
             }
         }
     }
+}
+
+// TODO: NUMA-aware
+struct thread_info
+{
+    pthread_t thread_id;
+    uint64_t m;
+    uint64_t n;
+    uint64_t k;
+    const double *A;
+    uint64_t lda;
+    const double *B;
+    uint64_t ldb;
+    double *restrict C;
+    uint64_t ldc;
+    double *_A;
+    double *_B;
+};
+
+static void *middle_kernel(
+    void *arg)
+{
+    struct thread_info *tinfo = arg;
+    const uint64_t m = tinfo->m;
+    const uint64_t n = tinfo->n;
+    const uint64_t k = tinfo->k;
+    const double *A = tinfo->A;
+    const uint64_t lda = tinfo->lda;
+    const double *B = tinfo->B;
+    const uint64_t ldb = tinfo->ldb;
+    double *C = tinfo->C;
+    const uint64_t ldc = tinfo->ldc;
+    double *_A = tinfo->_A;
+    double *_B = tinfo->_B;
+
+    const uint64_t mc = ROUND_UP(m, MB);
+    const uint64_t mr = m % MB;
+    const uint64_t nc = ROUND_UP(n, NB);
+    const uint64_t nr = n % NB;
+    const uint64_t kc = ROUND_UP(k, KB);
+    const uint64_t kr = k % KB;
+
+#ifdef DEBUG
+    const double start_time = omp_get_wtime();
 #endif
+
+    for (uint64_t mi = 0; mi < mc; ++mi)
+    {
+        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
+
+        for (uint64_t ki = 0; ki < kc; ++ki)
+        {
+            const register uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
+
+            packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
+
+            for (uint64_t ni = 0; ni < nc; ++ni)
+            {
+                const register uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
+
+                packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
+
+                inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
+            }
+        }
+    }
+
+#ifdef DEBUG
+    const double end_time = omp_get_wtime();
+    double *mem;
+    mem = malloc(sizeof(double));
+    *mem = (end_time - start_time);
+
+    return (void *)mem;
+#else
+    return (void *)0;
+#endif
+}
+
+__forceinline uint64_t min(const uint64_t a, const uint64_t b)
+{
+    return a < b ? a : b;
 }
 
 void call_dgemm(
@@ -804,39 +738,99 @@ void call_dgemm(
     assert(alpha == -1.0);
     assert(beta == 1.0);
 
-    const uint64_t mc = ROUND_UP(m, MB);
-    const uint64_t mr = m % MB;
-    const uint64_t nc = ROUND_UP(n, NB);
-    const uint64_t nr = n % NB;
-    const uint64_t kc = ROUND_UP(k, KB);
-    const uint64_t kr = k % KB;
-
-    static double *_A = NULL;
-    static double *_B = NULL;
-
-    if (_A == NULL)
-    {
-        _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
-        _B = numa_alloc(sizeof(double) * KB * NB);
-    }
+    const uint64_t mc = ROUND_UP(m, MA);
+    const uint64_t mr = m % MA;
+    const uint64_t nc = ROUND_UP(n, NA);
+    const uint64_t nr = n % NA;
+    const uint64_t kc = ROUND_UP(k, KA);
+    const uint64_t kr = k % KA;
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
-        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
+        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MA : mr;
 
         for (uint64_t ki = 0; ki < kc; ++ki)
         {
-            const register uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
-
-            packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
+            const uint64_t kk = (ki != kc - 1 || kr == 0) ? KA : kr;
 
             for (uint64_t ni = 0; ni < nc; ++ni)
             {
-                const register uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
+                const uint64_t nn = (ni != nc - 1 || nr == 0) ? NA : nr;
 
-                packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
+                const uint64_t total_m_jobs = (mm + MR - 1) / MR;
+                const uint64_t min_each_m_jobs = total_m_jobs / CM;
+                const uint64_t rest_m_jobs = total_m_jobs % CM;
 
-                inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
+                const uint64_t total_n_jobs = (nn + NR - 1) / NR;
+                const uint64_t min_each_n_jobs = total_n_jobs / CN;
+                const uint64_t rest_n_jobs = total_n_jobs % CN;
+
+                struct thread_info tinfo[TOTAL_CORE];
+                cpu_set_t mask;
+
+                pthread_attr_t attr;
+                pthread_attr_init(&attr);
+
+                for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
+                {
+                    const uint64_t m_pid = pid % CM;
+                    const uint64_t n_pid = pid / CM;
+
+                    const uint64_t my_m_idx_start = (m_pid)*min_each_m_jobs + min(m_pid, rest_m_jobs);
+                    const uint64_t my_m_idx_end = (m_pid + 1) * min_each_m_jobs + min(m_pid + 1, rest_m_jobs);
+                    const uint64_t my_m_start = min(my_m_idx_start * MR, mm);
+                    const uint64_t my_m_end = min(my_m_idx_end * MR, mm);
+                    const uint64_t my_m_size = my_m_end - my_m_start;
+
+                    const uint64_t my_n_idx_start = (n_pid)*min_each_n_jobs + min(n_pid, rest_n_jobs);
+                    const uint64_t my_n_idx_end = (n_pid + 1) * min_each_n_jobs + min(n_pid + 1, rest_n_jobs);
+                    const uint64_t my_n_start = min(my_n_idx_start * NR, nn);
+                    const uint64_t my_n_end = min(my_n_idx_end * NR, nn);
+                    const uint64_t my_n_size = my_n_end - my_n_start;
+
+                    const double *A_start = A + my_m_start;
+                    const double *B_start = B + my_n_start * ldb;
+                    double *C_start = C + my_m_start * 1 + my_n_start * ldc;
+
+                    static double *_A[TOTAL_CORE] = {
+                        NULL,
+                    };
+                    static double *_B[TOTAL_CORE] = {
+                        NULL,
+                    };
+
+                    if (_A[pid] == NULL)
+                    {
+                        _A[pid] = numa_alloc(sizeof(double) * (MB + MR) * KB);
+                        _B[pid] = numa_alloc(sizeof(double) * KB * (NB + NR));
+                    }
+
+                    tinfo[pid].m = my_m_size;
+                    tinfo[pid].n = my_n_size;
+                    tinfo[pid].k = kk;
+                    tinfo[pid].A = A_start;
+                    tinfo[pid].lda = lda;
+                    tinfo[pid].B = B_start;
+                    tinfo[pid].ldb = ldb;
+                    tinfo[pid].C = C_start;
+                    tinfo[pid].ldc = ldc;
+                    tinfo[pid]._A = _A[pid];
+                    tinfo[pid]._B = _B[pid];
+
+                    CPU_ZERO(&mask);
+                    CPU_SET(pid, &mask);
+
+                    pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &mask);
+                    pthread_create(&tinfo[pid].thread_id, &attr, &middle_kernel, &tinfo[pid]);
+                }
+
+                for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
+                {
+                    void *res;
+                    pthread_join(tinfo[pid].thread_id, &res);
+                }
+
+                pthread_attr_destroy(&attr);
             }
         }
     }

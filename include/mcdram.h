@@ -1,5 +1,7 @@
 #pragma once
 
+#include <numa.h>
+
 #ifndef NUMA_NODE_MCDRAM
 #define NUMA_NODE_MCDRAM 1
 #endif

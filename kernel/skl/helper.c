@@ -1,11 +1,4 @@
-#include <mkl.h>
-#include <omp.h>
-#include <string.h>
-#include <stdbool.h>
-
-#include "cblas_format.h"
-#include "common.h"
-#include "mcdram.h"
+#include "helper.h"
 
 #define M 600
 #define N 600
