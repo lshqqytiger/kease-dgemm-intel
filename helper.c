@@ -1,13 +1,43 @@
-#include "helper.h"
-#include "mcdram.h"
+#include <mkl.h>
+#include <string.h>
+#include <stdbool.h>
+#include <numa.h>
+#include <omp.h>
 
-#define M 6000
-#define N 6000
-#define K 6000
+#include "cblas_format.h"
+#ifdef USE_MCDRAM
+#include "mcdram.h"
+#endif
+
+#define M 600
+#define N 600
+#define K 600
 
 #define lda M
 #define ldb K
 #define ldc M
+
+void set_data(double *matrix, uint64_t size, uint64_t seed, double min_value,
+              double max_value)
+{
+#pragma omp parallel
+  {
+    const uint64_t tid = omp_get_thread_num();
+    uint64_t value = (tid * 1034871 + 10581) * seed;
+    const uint64_t mul = 192499;
+    const uint64_t add = 6837199;
+    for (uint64_t i = 0; i < 50 + tid; ++i)
+    {
+        value = value * mul + add;
+    }
+#pragma omp for
+    for (uint64_t i = 0; i < size; ++i)
+    {
+        value = value * mul + add;
+        matrix[i] = (double)value / (double)(uint64_t)(-1) * (max_value - min_value) + min_value;
+    }
+  }
+}
 
 void initialize(void **arg_in, void **arg_out, void **arg_val)
 {
