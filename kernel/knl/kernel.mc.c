@@ -2,13 +2,14 @@
  * @file knl/kernel.mc.c
  * @author Enoch Jung
  * @brief dgemm for
- *        - core : 1 core
+ *        - cores : 68
  *        - A     : ColMajor
  *        - B     : ColMajor
  *        - C     : ColMajor
  *        - k     : even number
  *        - alpha : -1.0
  *        - beta  : +1.0
+ * tuned for M=N=K=6000
  * @date 2024-04-17
  */
 

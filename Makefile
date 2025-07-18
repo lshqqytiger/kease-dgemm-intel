@@ -29,16 +29,10 @@ skl_kernel.oc: $(OUTPUT_PATH)/dgemm_flops_skl_kernel.oc.out
 $(OUTPUT_PATH)/dgemm_flops_mkl.out: dgemm_flops.c kernel/cblas.c
 	$(CC) -o $@ $^ $(CFLAGS) -mkl -wd3950 -DKERNEL=\"mkl\"
 
-$(OUTPUT_PATH)/dgemm_flops_blis.out: dgemm_flops.c kernel/blis.c
-	gcc -o $@ $^ $(CFLAGS) -lblis -DKERNEL=\"BLIS\" -DNO_MKL
-
-$(OUTPUT_PATH)/dgemm_flops_openblas.out: dgemm_flops.c kernel/cblas.c
-	gcc -o $@ $^ $(CFLAGS) /opt/OpenBLAS/lib/libopenblas.a -DKERNEL=\"OpenBLAS\" -DNO_MKL
-
-$(OUTPUT_PATH)/dgemm_flops_knl_kernel.mc.out: dgemm_flops.c kernel_knl/kernel.mc.c
+$(OUTPUT_PATH)/dgemm_flops_knl_kernel.mc.out: dgemm_flops.c kernel/knl/kernel.mc.c
 	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DKERNEL=\"kernel.mc\" $(BLOCK) -DVERIFY
 
-$(OUTPUT_PATH)/dgemm_flops_knl_kernel.oc.out: dgemm_flops.c kernel_knl/kernel.oc.c
+$(OUTPUT_PATH)/dgemm_flops_knl_kernel.oc.out: dgemm_flops.c kernel/knl/kernel.oc.c
 	$(CC) -o $@ $^ $(CFLAGS) -mkl -qopenmp -wd3950 -DKERNEL=\"kernel.oc\" $(BLOCK) -DVERIFY
 
 clean:

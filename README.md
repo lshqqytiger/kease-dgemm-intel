@@ -1,6 +1,6 @@
 # Auto-tuned GEMM kernels for Intel Processors
 
-Auto-tuned Double-precision General Matrix-Matrix Multiplication kernels for Intel® processors.
+Auto-tuned Double-precision General Matrix-Matrix Multiplication kernels for Intel® Xeon processors.
 
 # Requirements
 

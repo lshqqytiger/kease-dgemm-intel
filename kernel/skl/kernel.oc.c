@@ -1,6 +1,6 @@
 /**
- * @file knl/kernel.oc.c
- * @author Enoch Jung
+ * @file skl/kernel.oc.c
+ * @author Seunghoon Lee
  * @brief dgemm for
  *        - cores : 1
  *        - A     : ColMajor
@@ -9,8 +9,8 @@
  *        - k     : even number
  *        - alpha : -1.0
  *        - beta  : +1.0
- * tuned for M=N=K=600
- * @date 2023-10-24
+ * tuned for M=N=K=2000
+ * @date 2025-07-18
  */
 
 #include <assert.h>
@@ -25,7 +25,7 @@
 
 // tunable parameters
 #ifndef MB
-#define MB 600
+#define MB 2000
 #endif
 #ifndef NB
 #define NB (NR * 1)
