@@ -392,9 +392,9 @@ void packacc(
         A_now = A_m_next;
         A_m_next += MR;
 
+#if ACC_PREFETCH_DEPTH != 0
         register const double *tmp_A = A_m_next;
         asm volatile(
-#if ACC_PREFETCH_DEPTH != 0
             ASM_REPEAT(ACC_PREFETCH_DEPTH,
                        ASM_PREFETCH(ACC_PREFETCH_HINT, "(%[A])")            //
                        ASM_PREFETCH(ACC_PREFETCH_HINT, "(%[A], %[lda], 1)") //
@@ -402,9 +402,8 @@ void packacc(
                        ASM_PREFETCH(ACC_PREFETCH_HINT, "(%[A],%[lda3], 1)"),
                        " lea             (%[A], %[lda], 4), %[A] \t\n")
             : [A] "+r"(tmp_A)
-            : [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3)
+            : [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
 #endif
-        );
 
         for (uint64_t kki = 0; kki < kkc; ++kki)
         {
@@ -420,9 +419,9 @@ void packacc(
         A_now = A_k_next;
         A_k_next += lda * CACHE_ELEM;
 
+#if ACC_PREFETCH_DEPTH != 0
         register const double *tmp_A = A_k_next;
         asm volatile(
-#if ACC_PREFETCH_DEPTH != 0
             ASM_REPEAT(ACC_PREFETCH_DEPTH,
                        ASM_PREFETCH(ACC_PREFETCH_HINT, "(%[A])")            //
                        ASM_PREFETCH(ACC_PREFETCH_HINT, "(%[A], %[lda], 1)") //
@@ -430,9 +429,8 @@ void packacc(
                        ASM_PREFETCH(ACC_PREFETCH_HINT, "(%[A],%[lda3], 1)"),
                        " lea             (%[A], %[lda], 4), %[A] \t\n")
             : [A] "+r"(tmp_A)
-            : [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3)
+            : [lda] "r"(lda * 8), [lda3] "r"(lda * 8 * 3));
 #endif
-        );
 
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
