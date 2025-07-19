@@ -14,11 +14,11 @@
  */
 
 #include <assert.h>
+#include <numa.h>
 #include <immintrin.h>
 
 #include "cblas_format.h"
 #include "common.h"
-#include "mcdram.h"
 
 #define MR 8
 #define NR 24

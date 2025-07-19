@@ -5,7 +5,6 @@
 
 #define ROUND_UP(a, b) ((a + b - 1) / b)
 
-// OS-specific
 #define CACHE_LINE 64
 #define CACHE_ELEM (CACHE_LINE / 8)
 

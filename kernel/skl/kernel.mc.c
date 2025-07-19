@@ -18,11 +18,11 @@
 #include <pthread.h>
 #include <sched.h>
 #include <assert.h>
+#include <numa.h>
 #include <immintrin.h>
 
 #include "cblas_format.h"
 #include "common.h"
-#include "mcdram.h"
 
 #define TOTAL_CORE 36
 
