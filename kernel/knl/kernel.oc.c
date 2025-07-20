@@ -367,20 +367,9 @@ void packacc(
     double *restrict _A)
 {
     const uint64_t mmc = ROUND_UP(mm, MR);
-    uint64_t mmr = MR;
-    const uint64_t mmr_ = mm % MR;
-    if (mmr_ != 0)
-    {
-        mmr = mmr_;
-    }
-
+    const uint64_t mmr = mm % MR;
     const uint64_t kkc = ROUND_UP(kk, CACHE_ELEM);
-    uint64_t kkr = CACHE_ELEM;
-    const uint64_t kkr_ = kk % CACHE_ELEM;
-    if (kkr_ != 0)
-    {
-        kkr = kkr_;
-    }
+    const uint64_t kkr = kk % CACHE_ELEM;
 
 #ifdef PACKACC_M_FIRST
     const double *A_now = A;
@@ -414,7 +403,7 @@ void packacc(
 
     for (uint64_t kki = 0; kki < kkc; ++kki)
     {
-        const uint64_t kkk = kki != kkc - 1 ? CACHE_ELEM : kkr;
+        const uint64_t kkk = (kki != kkc - 1 || kkr == 0) ? CACHE_ELEM : kkr;
 
         A_now = A_k_next;
         A_k_next += lda * CACHE_ELEM;
@@ -434,7 +423,7 @@ void packacc(
 
         for (uint64_t mmi = 0; mmi < mmc; ++mmi)
         {
-            register const uint64_t mmm = mmi != mmc - 1 ? MR : mmr;
+            register const uint64_t mmm = (mmi != mmc - 1 || mmr == 0) ? MR : mmr;
 #endif
 
             register double *_A_now = _A + mmi * MR * kk + kki * MR * CACHE_ELEM;
@@ -538,7 +527,6 @@ void packbcr(
 {
     const uint64_t nnc = ROUND_UP(nn, NR);
     const uint64_t nnr = nn % NR;
-
     const uint64_t kkc = ROUND_UP(kk, CACHE_ELEM);
     const uint64_t kkr = kk % CACHE_ELEM;
 
@@ -560,7 +548,7 @@ void packbcr(
                 register const uint64_t nnnn = (i != nnnc - 1 || nnnr == 0) ? 8 : nnnr;
                 if (kkk == 8 && nnnn == 8)
                 {
-                    transpose(_B_now + i * 8 + j * NR * 8, B + i * 8 * ldb + j * 8, ldb);
+                    transpose(_B_now + i * 8 + j * NR * 8, B_now + i * 8 * ldb + j * 8, ldb);
                 }
                 else
                 {
@@ -568,7 +556,7 @@ void packbcr(
                     {
                         for (uint64_t jj = 0; jj < kkk; ++jj)
                         {
-                            _B_now[j * NR * 8 + i * 8 + ii + jj * NR] = B[j * 8 + i * 8 * ldb + ii * ldb + jj];
+                            _B_now[j * NR * 8 + i * 8 + ii + jj * NR] = B_now[j * 8 + i * 8 * ldb + ii * ldb + jj];
                         }
                     }
                 }
