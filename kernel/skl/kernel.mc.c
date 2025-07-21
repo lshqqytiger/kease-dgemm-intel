@@ -729,6 +729,13 @@ void call_dgemm(
                 pthread_attr_t attr;
                 pthread_attr_init(&attr);
 
+                static double *_A[TOTAL_CORE] = {
+                    NULL,
+                };
+                static double *_B[TOTAL_CORE] = {
+                    NULL,
+                };
+
                 for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
                 {
                     const uint64_t m_pid = pid % CM;
@@ -750,18 +757,15 @@ void call_dgemm(
                     const double *B_start = B + my_n_start * ldb;
                     double *C_start = C + my_m_start * 1 + my_n_start * ldc;
 
-                    static double *_A[TOTAL_CORE] = {
-                        NULL,
-                    };
-                    static double *_B[TOTAL_CORE] = {
-                        NULL,
-                    };
-
+#ifndef DISABLE_MEMORY_BUFFER
                     if (_A[pid] == NULL)
                     {
+#endif
                         _A[pid] = numa_alloc(sizeof(double) * (MB + MR) * KB);
                         _B[pid] = numa_alloc(sizeof(double) * KB * (NB + NR));
+#ifndef DISABLE_MEMORY_BUFFER
                     }
+#endif
 
                     tinfo[pid].m = my_m_size;
                     tinfo[pid].n = my_n_size;
@@ -782,13 +786,18 @@ void call_dgemm(
                     pthread_create(&tinfo[pid].thread_id, &attr, &middle_kernel, &tinfo[pid]);
                 }
 
+                pthread_attr_destroy(&attr);
+
                 for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
                 {
                     void *res;
                     pthread_join(tinfo[pid].thread_id, &res);
-                }
 
-                pthread_attr_destroy(&attr);
+#ifdef DISABLE_MEMORY_BUFFER
+                    numa_free(_A, sizeof(double) * (MB + MR) * KB);
+                    numa_free(_B, sizeof(double) * KB * NB);
+#endif
+                }
             }
         }
     }

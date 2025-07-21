@@ -605,11 +605,15 @@ void call_dgemm(
     static double *_A = NULL;
     static double *_B = NULL;
 
+#ifndef DISABLE_MEMORY_BUFFER
     if (_A == NULL)
     {
+#endif
         _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
         _B = numa_alloc(sizeof(double) * KB * NB);
+#ifndef DISABLE_MEMORY_BUFFER
     }
+#endif
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
@@ -631,4 +635,9 @@ void call_dgemm(
             }
         }
     }
+
+#ifdef DISABLE_MEMORY_BUFFER
+    numa_free(_A, sizeof(double) * (MB + MR) * KB);
+    numa_free(_B, sizeof(double) * KB * NB);
+#endif
 }
