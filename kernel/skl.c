@@ -1,16 +1,10 @@
 /**
- * @file skl/kernel.mc.c
- * @author Seunghoon Lee
- * @brief dgemm for
- *        - cores : 18 × 2
- *        - A     : ColMajor
- *        - B     : ColMajor
- *        - C     : ColMajor
- *        - k     : even number
- *        - alpha : -1.0
- *        - beta  : +1.0
- * tuned for M=N=K=20000
- * @date 2025-07-18
+ * - A     : ColMajor
+ * - B     : ColMajor
+ * - C     : ColMajor
+ * - k     : even number
+ * - alpha : -1.0
+ * - beta  : +1.0
  */
 
 #define _GNU_SOURCE
@@ -24,27 +18,14 @@
 #include "cblas_format.h"
 #include "common.h"
 
-#define TOTAL_CORE 36
+#ifdef OC
+#include "skl.oc.inc"
+#else
+#include "skl.mc.inc"
+#endif
 
 #define MR 8
 #define NR 24
-
-// tunable parameters
-#ifndef CM
-#define CM 18
-#endif
-
-#define CN (TOTAL_CORE / CM)
-
-#ifndef MB
-#define MB (MR * 48)
-#endif
-#ifndef NB
-#define NB (NR * 1)
-#endif
-#ifndef KB
-#define KB 64
-#endif
 
 #ifndef MA
 #define MA (MB * 1000)
@@ -56,43 +37,7 @@
 #define KA (KB * 1000)
 #endif
 
-#ifndef MK_UNROLL_DEPTH
-#define MK_UNROLL_DEPTH 2
-#endif
-
-#define MK_PREFETCH_A0
-#define MK_PREFETCH_A1
-
-#ifndef MK_PREFETCH_A_HINT
-#define MK_PREFETCH_A_HINT t0
-#endif
-
-#ifndef MK_PREFETCH_NEXT_A_DEPTH
-#define MK_PREFETCH_NEXT_A_DEPTH 0
-#endif
-
-#ifndef MK_PREFETCH_NEXT_A_LOCALITY
-#define MK_PREFETCH_NEXT_A_LOCALITY LOCALITY_HIGH
-#endif
-
-#ifndef MK_PREFETCH_C_DEPTH
-#define MK_PREFETCH_C_DEPTH 6
-#endif
-
-#ifndef MK_PREFETCH_C_HINT
-#define MK_PREFETCH_C_HINT t0
-#endif
-
-#ifndef ACC_PREFETCH_DEPTH
-#define ACC_PREFETCH_DEPTH 2
-#endif
-
-#ifndef ACC_PREFETCH_HINT
-#define ACC_PREFETCH_HINT nta
-#endif
-// tunable parameters
-
-void micro_kernel_8x24_ppc_anbp(
+__forceinline void micro_kernel_8x24_ppc_anbp(
     uint64_t kk,
     const double *restrict _A,
     const double *restrict _B,
@@ -306,8 +251,6 @@ void micro_dxpy_cc(
     }
 }
 
-// #define INNER_MN
-
 void inner_kernel_ppc_anbp(
     uint64_t mm,
     uint64_t nn,
@@ -375,8 +318,6 @@ void inner_kernel_ppc_anbp(
 #endif
     }
 }
-
-// #define PACKACC_M_FIRST
 
 void packacc(
     uint64_t mm,
@@ -496,7 +437,7 @@ void packacc(
     }
 }
 
-inline void transpose(double *dst, const double *src, int ld)
+void transpose(double *dst, const double *src, int ld)
 {
     __m512d r00, r01, r02, r03, r04, r05, r06, r07, r08, r09, r0a, r0b, r0c, r0d, r0e, r0f;
 
@@ -604,32 +545,15 @@ struct thread_info
     double *_B;
 };
 
-static void *middle_kernel(
-    void *arg)
+__forceinline void middle_kernel(const uint64_t m, const uint64_t n, const uint64_t k, const double *A,
+                                 const uint64_t lda, const double *B, const uint64_t ldb, double *C, const uint64_t ldc, double *_A, double *_B)
 {
-    struct thread_info *tinfo = arg;
-    const uint64_t m = tinfo->m;
-    const uint64_t n = tinfo->n;
-    const uint64_t k = tinfo->k;
-    const double *A = tinfo->A;
-    const uint64_t lda = tinfo->lda;
-    const double *B = tinfo->B;
-    const uint64_t ldb = tinfo->ldb;
-    double *C = tinfo->C;
-    const uint64_t ldc = tinfo->ldc;
-    double *_A = tinfo->_A;
-    double *_B = tinfo->_B;
-
     const uint64_t mc = ROUND_UP(m, MB);
     const uint64_t mr = m % MB;
     const uint64_t nc = ROUND_UP(n, NB);
     const uint64_t nr = n % NB;
     const uint64_t kc = ROUND_UP(k, KB);
     const uint64_t kr = k % KB;
-
-#ifdef DEBUG
-    const double start_time = omp_get_wtime();
-#endif
 
     for (uint64_t mi = 0; mi < mc; ++mi)
     {
@@ -651,17 +575,27 @@ static void *middle_kernel(
             }
         }
     }
+}
 
-#ifdef DEBUG
-    const double end_time = omp_get_wtime();
-    double *mem;
-    mem = malloc(sizeof(double));
-    *mem = (end_time - start_time);
+static void *thread_routine(
+    void *arg)
+{
+    struct thread_info *tinfo = arg;
+    const uint64_t m = tinfo->m;
+    const uint64_t n = tinfo->n;
+    const uint64_t k = tinfo->k;
+    const double *A = tinfo->A;
+    const uint64_t lda = tinfo->lda;
+    const double *B = tinfo->B;
+    const uint64_t ldb = tinfo->ldb;
+    double *C = tinfo->C;
+    const uint64_t ldc = tinfo->ldc;
+    double *_A = tinfo->_A;
+    double *_B = tinfo->_B;
 
-    return (void *)mem;
-#else
-    return (void *)0;
-#endif
+    middle_kernel(m, n, k, A, lda, B, ldb, C, ldc, _A, _B);
+
+    return NULL;
 }
 
 __forceinline uint64_t min(const uint64_t a, const uint64_t b)
@@ -696,6 +630,27 @@ void call_dgemm(
     assert(alpha == -1.0);
     assert(beta == 1.0);
 
+#ifdef OC
+    static double *_A = NULL;
+    static double *_B = NULL;
+
+#ifndef DISABLE_MEMORY_BUFFER
+    if (_A == NULL)
+    {
+#endif
+        _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
+        _B = numa_alloc(sizeof(double) * KB * NB);
+#ifndef DISABLE_MEMORY_BUFFER
+    }
+#endif
+
+    middle_kernel(m, n, k, A, lda, B, ldb, C, ldc, _A, _B);
+
+#ifdef DISABLE_MEMORY_BUFFER
+    numa_free(_A, sizeof(double) * (MB + MR) * KB);
+    numa_free(_B, sizeof(double) * KB * NB);
+#endif
+#else
     const uint64_t mc = ROUND_UP(m, MA);
     const uint64_t mr = m % MA;
     const uint64_t nc = ROUND_UP(n, NA);
@@ -801,4 +756,5 @@ void call_dgemm(
             }
         }
     }
+#endif
 }

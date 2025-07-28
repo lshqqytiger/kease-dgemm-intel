@@ -1,18 +1,16 @@
 /**
- * @file knl/kernel.oc.c
- * @author Enoch Jung
- * @brief dgemm for
- *        - cores : 1
- *        - A     : ColMajor
- *        - B     : ColMajor
- *        - C     : ColMajor
- *        - k     : even number
- *        - alpha : -1.0
- *        - beta  : +1.0
- * tuned for M=N=K=600
- * @date 2023-10-24
+ * - A     : ColMajor
+ * - B     : ColMajor
+ * - C     : ColMajor
+ * - k     : even number
+ * - alpha : -1.0
+ * - beta  : +1.0
  */
 
+#define _GNU_SOURCE
+
+#include <pthread.h>
+#include <sched.h>
 #include <assert.h>
 #include <immintrin.h>
 
@@ -20,60 +18,26 @@
 #include "common.h"
 #include "mcdram.h"
 
+#ifdef OC
+#include "knl.oc.inc"
+#else
+#include "knl.mc.inc"
+#endif
+
 #define MR 8
 #define NR 24
 
-// tunable parameters
-#ifndef MB
-#define MB 600
+#ifndef MA
+#define MA (MB * 1000)
 #endif
-#ifndef NB
-#define NB (NR * 1)
+#ifndef NA
+#define NA (NB * 1000)
 #endif
-#ifndef KB
-#define KB 64
-#endif
-
-// prefetch hints
-// wt1, w, t0, t1, t2, nta
-
-#ifndef MK_UNROLL_DEPTH
-#define MK_UNROLL_DEPTH 2
+#ifndef KA
+#define KA (KB * 1000)
 #endif
 
-#define MK_PREFETCH_A0
-#define MK_PREFETCH_A1
-
-#ifndef MK_PREFETCH_A_HINT
-#define MK_PREFETCH_A_HINT t0
-#endif
-
-#ifndef MK_PREFETCH_NEXT_A_DEPTH
-#define MK_PREFETCH_NEXT_A_DEPTH 0
-#endif
-
-#ifndef MK_PREFETCH_NEXT_A_LOCALITY
-#define MK_PREFETCH_NEXT_A_LOCALITY LOCALITY_HIGH
-#endif
-
-#ifndef MK_PREFETCH_C_DEPTH
-#define MK_PREFETCH_C_DEPTH 6
-#endif
-
-#ifndef MK_PREFETCH_C_HINT
-#define MK_PREFETCH_C_HINT t0
-#endif
-
-#ifndef ACC_PREFETCH_DEPTH
-#define ACC_PREFETCH_DEPTH 2
-#endif
-
-#ifndef ACC_PREFETCH_HINT
-#define ACC_PREFETCH_HINT nta
-#endif
-// tunable parameters
-
-void micro_kernel_8x24_ppc_anbp(
+__forceinline void micro_kernel_8x24_ppc_anbp(
     uint64_t kk,
     const double *restrict _A,
     const double *restrict _B,
@@ -287,8 +251,6 @@ void micro_dxpy_cc(
     }
 }
 
-// #define INNER_MN
-
 void inner_kernel_ppc_anbp(
     uint64_t mm,
     uint64_t nn,
@@ -356,8 +318,6 @@ void inner_kernel_ppc_anbp(
 #endif
     }
 }
-
-// #define PACKACC_M_FIRST
 
 void packacc(
     uint64_t mm,
@@ -477,7 +437,7 @@ void packacc(
     }
 }
 
-inline void transpose(double *dst, const double *src, int ld)
+void transpose(double *dst, const double *src, int ld)
 {
     __m512d r00, r01, r02, r03, r04, r05, r06, r07, r08, r09, r0a, r0b, r0c, r0d, r0e, r0f;
 
@@ -568,6 +528,80 @@ void packbcr(
     }
 }
 
+struct thread_info
+{
+    pthread_t thread_id;
+    uint64_t m;
+    uint64_t n;
+    uint64_t k;
+    const double *A;
+    uint64_t lda;
+    const double *B;
+    uint64_t ldb;
+    double *restrict C;
+    uint64_t ldc;
+    double *_A;
+    double *_B;
+};
+
+__forceinline void middle_kernel(const uint64_t m, const uint64_t n, const uint64_t k, const double *A,
+                                 const uint64_t lda, const double *B, const uint64_t ldb, double *C, const uint64_t ldc, double *_A, double *_B)
+{
+    const uint64_t mc = ROUND_UP(m, MB);
+    const uint64_t mr = m % MB;
+    const uint64_t nc = ROUND_UP(n, NB);
+    const uint64_t nr = n % NB;
+    const uint64_t kc = ROUND_UP(k, KB);
+    const uint64_t kr = k % KB;
+
+    for (uint64_t mi = 0; mi < mc; ++mi)
+    {
+        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
+
+        for (uint64_t ki = 0; ki < kc; ++ki)
+        {
+            register const uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
+
+            packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
+
+            for (uint64_t ni = 0; ni < nc; ++ni)
+            {
+                register const uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
+
+                packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
+
+                inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
+            }
+        }
+    }
+}
+
+static void *thread_routine(
+    void *arg)
+{
+    struct thread_info *tinfo = arg;
+    const uint64_t m = tinfo->m;
+    const uint64_t n = tinfo->n;
+    const uint64_t k = tinfo->k;
+    const double *A = tinfo->A;
+    const uint64_t lda = tinfo->lda;
+    const double *B = tinfo->B;
+    const uint64_t ldb = tinfo->ldb;
+    double *C = tinfo->C;
+    const uint64_t ldc = tinfo->ldc;
+    double *_A = tinfo->_A;
+    double *_B = tinfo->_B;
+
+    middle_kernel(m, n, k, A, lda, B, ldb, C, ldc, _A, _B);
+
+    return NULL;
+}
+
+__forceinline uint64_t min(const uint64_t a, const uint64_t b)
+{
+    return a < b ? a : b;
+}
+
 void call_dgemm(
     CBLAS_LAYOUT layout,
     CBLAS_TRANSPOSE TransA,
@@ -595,13 +629,7 @@ void call_dgemm(
     assert(alpha == -1.0);
     assert(beta == 1.0);
 
-    const uint64_t mc = ROUND_UP(m, MB);
-    const uint64_t mr = m % MB;
-    const uint64_t nc = ROUND_UP(n, NB);
-    const uint64_t nr = n % NB;
-    const uint64_t kc = ROUND_UP(k, KB);
-    const uint64_t kr = k % KB;
-
+#ifdef OC
     static double *_A = NULL;
     static double *_B = NULL;
 
@@ -615,29 +643,117 @@ void call_dgemm(
     }
 #endif
 
-    for (uint64_t mi = 0; mi < mc; ++mi)
-    {
-        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MB : mr;
-
-        for (uint64_t ki = 0; ki < kc; ++ki)
-        {
-            register const uint64_t kk = (ki != kc - 1 || kr == 0) ? KB : kr;
-
-            packacc(mm, kk, A + mi * MB + ki * KB * lda, lda, _A);
-
-            for (uint64_t ni = 0; ni < nc; ++ni)
-            {
-                register const uint64_t nn = (ni != nc - 1 || nr == 0) ? NB : nr;
-
-                packbcr(kk, nn, B + ki * KB + ni * NB * ldb, ldb, _B);
-
-                inner_kernel_ppc_anbp(mm, nn, kk, _A, _B, C + mi * MB + ni * NB * ldc, ldc);
-            }
-        }
-    }
+    middle_kernel(m, n, k, A, lda, B, ldb, C, ldc, _A, _B);
 
 #ifdef DISABLE_MEMORY_BUFFER
     numa_free(_A, sizeof(double) * (MB + MR) * KB);
     numa_free(_B, sizeof(double) * KB * NB);
+#endif
+#else
+    const uint64_t mc = ROUND_UP(m, MA);
+    const uint64_t mr = m % MA;
+    const uint64_t nc = ROUND_UP(n, NA);
+    const uint64_t nr = n % NA;
+    const uint64_t kc = ROUND_UP(k, KA);
+    const uint64_t kr = k % KA;
+
+    for (uint64_t mi = 0; mi < mc; ++mi)
+    {
+        const uint64_t mm = (mi != mc - 1 || mr == 0) ? MA : mr;
+
+        for (uint64_t ki = 0; ki < kc; ++ki)
+        {
+            const uint64_t kk = (ki != kc - 1 || kr == 0) ? KA : kr;
+
+            for (uint64_t ni = 0; ni < nc; ++ni)
+            {
+                const uint64_t nn = (ni != nc - 1 || nr == 0) ? NA : nr;
+
+                const uint64_t total_m_jobs = (mm + MR - 1) / MR;
+                const uint64_t min_each_m_jobs = total_m_jobs / CM;
+                const uint64_t rest_m_jobs = total_m_jobs % CM;
+
+                const uint64_t total_n_jobs = (nn + NR - 1) / NR;
+                const uint64_t min_each_n_jobs = total_n_jobs / CN;
+                const uint64_t rest_n_jobs = total_n_jobs % CN;
+
+                struct thread_info tinfo[TOTAL_CORE];
+                cpu_set_t mask;
+
+                pthread_attr_t attr;
+                pthread_attr_init(&attr);
+
+                static double *_A[TOTAL_CORE] = {
+                    NULL,
+                };
+                static double *_B[TOTAL_CORE] = {
+                    NULL,
+                };
+
+                for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
+                {
+                    const uint64_t m_pid = pid % CM;
+                    const uint64_t n_pid = pid / CM;
+
+                    const uint64_t my_m_idx_start = (m_pid)*min_each_m_jobs + min(m_pid, rest_m_jobs);
+                    const uint64_t my_m_idx_end = (m_pid + 1) * min_each_m_jobs + min(m_pid + 1, rest_m_jobs);
+                    const uint64_t my_m_start = min(my_m_idx_start * MR, mm);
+                    const uint64_t my_m_end = min(my_m_idx_end * MR, mm);
+                    const uint64_t my_m_size = my_m_end - my_m_start;
+
+                    const uint64_t my_n_idx_start = (n_pid)*min_each_n_jobs + min(n_pid, rest_n_jobs);
+                    const uint64_t my_n_idx_end = (n_pid + 1) * min_each_n_jobs + min(n_pid + 1, rest_n_jobs);
+                    const uint64_t my_n_start = min(my_n_idx_start * NR, nn);
+                    const uint64_t my_n_end = min(my_n_idx_end * NR, nn);
+                    const uint64_t my_n_size = my_n_end - my_n_start;
+
+                    const double *A_start = A + my_m_start;
+                    const double *B_start = B + my_n_start * ldb;
+                    double *C_start = C + my_m_start * 1 + my_n_start * ldc;
+
+#ifndef DISABLE_MEMORY_BUFFER
+                    if (_A[pid] == NULL)
+                    {
+#endif
+                        _A[pid] = numa_alloc(sizeof(double) * (MB + MR) * KB);
+                        _B[pid] = numa_alloc(sizeof(double) * KB * (NB + NR));
+#ifndef DISABLE_MEMORY_BUFFER
+                    }
+#endif
+
+                    tinfo[pid].m = my_m_size;
+                    tinfo[pid].n = my_n_size;
+                    tinfo[pid].k = kk;
+                    tinfo[pid].A = A_start;
+                    tinfo[pid].lda = lda;
+                    tinfo[pid].B = B_start;
+                    tinfo[pid].ldb = ldb;
+                    tinfo[pid].C = C_start;
+                    tinfo[pid].ldc = ldc;
+                    tinfo[pid]._A = _A[pid];
+                    tinfo[pid]._B = _B[pid];
+
+                    CPU_ZERO(&mask);
+                    CPU_SET(pid, &mask);
+
+                    pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &mask);
+                    pthread_create(&tinfo[pid].thread_id, &attr, &thread_routine, &tinfo[pid]);
+                }
+
+                pthread_attr_destroy(&attr);
+
+                for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
+                {
+                    void *res;
+                    pthread_join(tinfo[pid].thread_id, &res);
+
+#ifdef DISABLE_MEMORY_BUFFER
+                    numa_free(_A, sizeof(double) * (MB + MR) * KB);
+                    numa_free(_B, sizeof(double) * KB * NB);
+#endif
+                }
+            }
+        }
+    }
 #endif
 }
