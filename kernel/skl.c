@@ -531,7 +531,7 @@ void packbcr(
 // TODO: NUMA-aware
 struct thread_info
 {
-    pthread_t thread_id;
+    pthread_t tid;
     uint64_t m;
     uint64_t n;
     uint64_t k;
@@ -738,7 +738,7 @@ void call_dgemm(
                     CPU_SET(pid, &mask);
 
                     pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &mask);
-                    pthread_create(&tinfo[pid].thread_id, &attr, &middle_kernel, &tinfo[pid]);
+                    pthread_create(&tinfo[pid].tid, &attr, &middle_kernel, &tinfo[pid]);
                 }
 
                 pthread_attr_destroy(&attr);
@@ -746,7 +746,7 @@ void call_dgemm(
                 for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
                 {
                     void *res;
-                    pthread_join(tinfo[pid].thread_id, &res);
+                    pthread_join(tinfo[pid].tid, &res);
 
 #ifdef DISABLE_MEMORY_BUFFER
                     numa_free(_A, sizeof(double) * (MB + MR) * KB);

@@ -6,9 +6,11 @@
 #ifndef MB
 #define MB 600
 #endif
+
 #ifndef NB
 #define NB (NR * 1)
 #endif
+
 #ifndef KB
 #define KB 64
 #endif

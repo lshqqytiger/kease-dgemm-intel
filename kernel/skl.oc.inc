@@ -7,9 +7,11 @@
 #ifndef MB
 #define MB 2000
 #endif
+
 #ifndef NB
 #define NB (NR * 1)
 #endif
+
 #ifndef KB
 #define KB 4
 #endif

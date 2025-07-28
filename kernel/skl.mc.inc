@@ -4,15 +4,16 @@
 #ifndef CM
 #define CM 18
 #endif
-
 #define CN (TOTAL_CORE / CM)
 
 #ifndef MB
 #define MB (MR * 1)
 #endif
+
 #ifndef NB
 #define NB (NR * 1)
 #endif
+
 #ifndef KB
 #define KB 4
 #endif
