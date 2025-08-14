@@ -27,6 +27,13 @@
 #define MR 8
 #define NR 24
 
+#define _A_SIZE (sizeof(double) * (MB + MR) * KB)
+#ifdef OC
+#define _B_SIZE (sizeof(double) * KB * NB)
+#else
+#define _B_SIZE (sizeof(double) * KB * (NB + NR))
+#endif
+
 #ifndef MA
 #define MA (MB * 1000)
 #endif
@@ -531,6 +538,7 @@ void packbcr(
 struct thread_info
 {
     pthread_t tid;
+    uint64_t pid;
     uint64_t m;
     uint64_t n;
     uint64_t k;
@@ -540,9 +548,19 @@ struct thread_info
     uint64_t ldb;
     double *restrict C;
     uint64_t ldc;
-    double *_A;
-    double *_B;
 };
+
+#ifdef OC
+static double *_A = NULL;
+static double *_B = NULL;
+#else
+static double *_A[TOTAL_CORE] = {
+    NULL,
+};
+static double *_B[TOTAL_CORE] = {
+    NULL,
+};
+#endif
 
 __forceinline void middle_kernel(const uint64_t m, const uint64_t n, const uint64_t k, const double *A,
                                  const uint64_t lda, const double *B, const uint64_t ldb, double *C, const uint64_t ldc, double *_A, double *_B)
@@ -576,10 +594,11 @@ __forceinline void middle_kernel(const uint64_t m, const uint64_t n, const uint6
     }
 }
 
-static void *thread_routine(
-    void *arg)
+#ifndef OC
+static void *thread_routine(void *arg)
 {
     struct thread_info *tinfo = arg;
+    const uint64_t pid = tinfo->pid;
     const uint64_t m = tinfo->m;
     const uint64_t n = tinfo->n;
     const uint64_t k = tinfo->k;
@@ -589,13 +608,12 @@ static void *thread_routine(
     const uint64_t ldb = tinfo->ldb;
     double *C = tinfo->C;
     const uint64_t ldc = tinfo->ldc;
-    double *_A = tinfo->_A;
-    double *_B = tinfo->_B;
 
-    middle_kernel(m, n, k, A, lda, B, ldb, C, ldc, _A, _B);
+    middle_kernel(m, n, k, A, lda, B, ldb, C, ldc, _A[pid], _B[pid]);
 
     return NULL;
 }
+#endif
 
 __forceinline uint64_t min(const uint64_t a, const uint64_t b)
 {
@@ -630,25 +648,13 @@ void call_dgemm(
     assert(beta == 1.0);
 
 #ifdef OC
-    static double *_A = NULL;
-    static double *_B = NULL;
-
-#ifndef DISABLE_MEMORY_BUFFER
     if (_A == NULL)
     {
-#endif
-        _A = numa_alloc(sizeof(double) * (MB + MR) * KB);
-        _B = numa_alloc(sizeof(double) * KB * NB);
-#ifndef DISABLE_MEMORY_BUFFER
+        _A = numa_alloc(_A_SIZE);
+        _B = numa_alloc(_B_SIZE);
     }
-#endif
 
     middle_kernel(m, n, k, A, lda, B, ldb, C, ldc, _A, _B);
-
-#ifdef DISABLE_MEMORY_BUFFER
-    numa_free(_A, sizeof(double) * (MB + MR) * KB);
-    numa_free(_B, sizeof(double) * KB * NB);
-#endif
 #else
     const uint64_t mc = ROUND_UP(m, MA);
     const uint64_t mr = m % MA;
@@ -683,13 +689,6 @@ void call_dgemm(
                 pthread_attr_t attr;
                 pthread_attr_init(&attr);
 
-                static double *_A[TOTAL_CORE] = {
-                    NULL,
-                };
-                static double *_B[TOTAL_CORE] = {
-                    NULL,
-                };
-
                 for (uint64_t pid = 0; pid < TOTAL_CORE; ++pid)
                 {
                     const uint64_t m_pid = pid % CM;
@@ -711,16 +710,13 @@ void call_dgemm(
                     const double *B_start = B + my_n_start * ldb;
                     double *C_start = C + my_m_start * 1 + my_n_start * ldc;
 
-#ifndef DISABLE_MEMORY_BUFFER
                     if (_A[pid] == NULL)
                     {
-#endif
-                        _A[pid] = numa_alloc(sizeof(double) * (MB + MR) * KB);
-                        _B[pid] = numa_alloc(sizeof(double) * KB * (NB + NR));
-#ifndef DISABLE_MEMORY_BUFFER
+                        _A[pid] = numa_alloc(_A_SIZE);
+                        _B[pid] = numa_alloc(_B_SIZE);
                     }
-#endif
 
+                    tinfo[pid].pid = pid;
                     tinfo[pid].m = my_m_size;
                     tinfo[pid].n = my_n_size;
                     tinfo[pid].k = kk;
@@ -730,8 +726,6 @@ void call_dgemm(
                     tinfo[pid].ldb = ldb;
                     tinfo[pid].C = C_start;
                     tinfo[pid].ldc = ldc;
-                    tinfo[pid]._A = _A[pid];
-                    tinfo[pid]._B = _B[pid];
 
                     CPU_ZERO(&mask);
                     CPU_SET(pid, &mask);
@@ -746,14 +740,37 @@ void call_dgemm(
                 {
                     void *res;
                     pthread_join(tinfo[pid].tid, &res);
-
-#ifdef DISABLE_MEMORY_BUFFER
-                    numa_free(_A, sizeof(double) * (MB + MR) * KB);
-                    numa_free(_B, sizeof(double) * KB * (NB + NR));
-#endif
                 }
             }
         }
+    }
+#endif
+}
+
+void initialize_blocks()
+{
+#ifdef OC
+    _A = numa_alloc(_A_SIZE);
+    _B = numa_alloc(_B_SIZE);
+#else
+    for (uint64_t i = 0; i < TOTAL_CORE; ++i)
+    {
+        _A[i] = numa_alloc(_A_SIZE);
+        _B[i] = numa_alloc(_B_SIZE);
+    }
+#endif
+}
+
+void finalize_blocks()
+{
+#ifdef OC
+    numa_free(_A, _A_SIZE);
+    numa_free(_B, _B_SIZE);
+#else
+    for (uint64_t i = 0; i < TOTAL_CORE; ++i)
+    {
+        numa_free(_A[i], _A_SIZE);
+        numa_free(_B[i], _B_SIZE);
     }
 #endif
 }

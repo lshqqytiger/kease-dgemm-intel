@@ -28,16 +28,19 @@ void set_data(double *matrix, uint64_t size, uint64_t seed, double min_value,
     const uint64_t add = 6837199;
     for (uint64_t i = 0; i < 50 + tid; ++i)
     {
-        value = value * mul + add;
+      value = value * mul + add;
     }
 #pragma omp for
     for (uint64_t i = 0; i < size; ++i)
     {
-        value = value * mul + add;
-        matrix[i] = (double)value / (double)(uint64_t)(-1) * (max_value - min_value) + min_value;
+      value = value * mul + add;
+      matrix[i] = (double)value / (double)(uint64_t)(-1) * (max_value - min_value) + min_value;
     }
   }
 }
+
+extern void initialize_blocks();
+extern void finalize_blocks();
 
 void initialize(void **arg_in, void **arg_out, void **arg_val)
 {
@@ -50,6 +53,8 @@ void initialize(void **arg_in, void **arg_out, void **arg_val)
 
   *arg_out = numa_alloc(M * N * sizeof(double));
   *arg_val = numa_alloc(M * N * sizeof(double));
+
+  initialize_blocks();
 
   set_data(arr[0], M * K, 100, -1.0, 1.0);
   set_data(arr[1], K * N, 200, -1.0, 1.0);
@@ -71,6 +76,8 @@ void finalize(void *arg_in, void *arg_out, void *arg_val)
 
   numa_free(arg_out, M * N * sizeof(double));
   numa_free(arg_val, M * N * sizeof(double));
+
+  finalize_blocks();
 }
 
 double evaluate(void *arg_in, void *arg_out)
