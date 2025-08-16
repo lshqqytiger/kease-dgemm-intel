@@ -39,9 +39,6 @@ void set_data(double *matrix, uint64_t size, uint64_t seed, double min_value,
   }
 }
 
-extern void initialize_blocks();
-extern void finalize_blocks();
-
 void initialize(void **arg_in, void **arg_out, void **arg_val)
 {
   void **arr = malloc(sizeof(void *) * 3);
@@ -53,8 +50,6 @@ void initialize(void **arg_in, void **arg_out, void **arg_val)
 
   *arg_out = numa_alloc(M * N * sizeof(double));
   *arg_val = numa_alloc(M * N * sizeof(double));
-
-  initialize_blocks();
 
   set_data(arr[0], M * K, 100, -1.0, 1.0);
   set_data(arr[1], K * N, 200, -1.0, 1.0);
@@ -76,8 +71,6 @@ void finalize(void *arg_in, void *arg_out, void *arg_val)
 
   numa_free(arg_out, M * N * sizeof(double));
   numa_free(arg_val, M * N * sizeof(double));
-
-  finalize_blocks();
 }
 
 double evaluate(void *arg_in, void *arg_out)
