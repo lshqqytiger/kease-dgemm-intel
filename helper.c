@@ -49,14 +49,17 @@ void initialize(void **arg_in, void **arg_out, void **arg_val)
   arr[2] = numa_alloc(M * N * sizeof(double));
 
   *arg_out = numa_alloc(M * N * sizeof(double));
-  *arg_val = numa_alloc(M * N * sizeof(double));
 
   set_data(arr[0], M * K, 100, -1.0, 1.0);
   set_data(arr[1], K * N, 200, -1.0, 1.0);
   set_data(arr[2], M * N, 300, -1.0, 1.0);
-  memcpy(*arg_val, arr[2], sizeof(double) * M * N);
 
-  cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K, -1.0, arr[0], lda, arr[1], ldb, 1.0, *arg_val, ldc);
+  if (arg_val != NULL)
+  {
+    *arg_val = numa_alloc(M * N * sizeof(double));
+    memcpy(*arg_val, arr[2], sizeof(double) * M * N);
+    cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K, -1.0, arr[0], lda, arr[1], ldb, 1.0, *arg_val, ldc);
+  }
 }
 
 void finalize(void *arg_in, void *arg_out, void *arg_val)
@@ -70,7 +73,11 @@ void finalize(void *arg_in, void *arg_out, void *arg_val)
   free(arr);
 
   numa_free(arg_out, M * N * sizeof(double));
-  numa_free(arg_val, M * N * sizeof(double));
+
+  if (arg_val != NULL)
+  {
+    numa_free(arg_val, M * N * sizeof(double));
+  }
 }
 
 double evaluate(void *arg_in, void *arg_out)
